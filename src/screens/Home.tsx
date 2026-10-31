@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { TopicIcon } from '../components/icons'
 import { ProgressBar } from '../components/ui'
 import { STATUS_LABEL, evaluateGoal, fmtNum, goalTitle, metricDef } from '../goals'
 import type { AppData } from '../goals'
@@ -46,16 +47,14 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
   const approachWeek = socialWeek.filter((e) => e.kind === 'approach').length
   const datesWeek = socialWeek.filter((e) => e.kind === 'date').length
 
-  const topics: { id: Topic; icon: string; name: string; info: string }[] = [
+  const topics: { id: Topic; name: string; info: string }[] = [
     {
       id: 'meditation',
-      icon: '🧘',
       name: 'Meditation',
       info: data.meditation.length ? `${medWeek}× diese Woche · Serie ${medStreak} Tage` : 'Noch keine Sitzung',
     },
     {
       id: 'reading',
-      icon: '📖',
       name: 'Lesen',
       info: data.books.some((b) => !b.finishedAt)
         ? `${readToday} Min heute · ${data.books.filter((b) => !b.finishedAt).length} Buch aktuell`
@@ -63,19 +62,16 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
     },
     {
       id: 'habits',
-      icon: '✅',
       name: 'Gewohnheiten',
       info: data.habits.length ? `${habitsToday} von ${data.habits.length} heute aktiv` : 'Noch keine Gewohnheit',
     },
     {
       id: 'mood',
-      icon: '🙂',
       name: 'Stimmung & Energie',
       info: lastMood ? `Zuletzt: Stimmung ${lastMood.mood} · Energie ${lastMood.energy}` : 'Noch kein Check-in',
     },
     {
       id: 'focus',
-      icon: '🍅',
       name: 'Fokus',
       info: focusToday.length
         ? `${focusToday.length} ${focusToday.length === 1 ? 'Block' : 'Blöcke'} · ${Math.round(sum(focusToday.map((s) => s.actualSec)) / 60)} Min heute`
@@ -83,7 +79,6 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
     },
     {
       id: 'social',
-      icon: '💬',
       name: 'Soziale Interaktion',
       info: data.social.length
         ? `${approachWeek}× angesprochen · ${datesWeek} ${datesWeek === 1 ? 'Date' : 'Dates'} diese Woche`
@@ -138,7 +133,7 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
       <p className="muted section">Themen</p>
       {topics.map((t) => (
         <button key={t.id} className="topic" onClick={() => onOpen(t.id)}>
-          <span className="topic-icon">{t.icon}</span>
+          <TopicIcon topic={t.id} />
           <span className="topic-body">
             <b>{t.name}</b>
             <small className="muted">{t.info}</small>

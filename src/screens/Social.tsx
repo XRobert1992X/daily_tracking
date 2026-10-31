@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { BarChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
+import { KIND_COLORS, KindIcon } from '../components/icons'
 import { Header, Seg, Stat } from '../components/ui'
 import type { AppData } from '../goals'
-import { dayKey, lastDays, shortDate, sum, todayKey, weekKeys } from '../stats'
+import { addDays, dayKey, lastDays, shortDate, sum, todayKey, weekKeys } from '../stats'
 import { SOCIAL_KINDS } from '../types'
 import type { Goal, SocialEntry, SocialKind } from '../types'
 
@@ -20,6 +21,8 @@ interface Props {
 const RATINGS = ['😞', '🙁', '😐', '🙂', '😄']
 const kindOf = (id: SocialKind) => SOCIAL_KINDS.find((k) => k.id === id)!
 const dayOf = (e: SocialEntry) => dayKey(new Date(e.at))
+const timeOf = (e: SocialEntry) =>
+  new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
 
 export default function Social(props: Props) {
   const { data, goals, onBack } = props
@@ -72,27 +75,22 @@ function Editor({
 
   return (
     <div className="editor">
-      <p className="muted">Wie lief es? (optional)</p>
-      <div className="scale mini">
-        {RATINGS.map((r, i) => (
-          <button
-            key={i}
-            className={rating === i + 1 ? 'on' : ''}
-            onClick={() => setRating(rating === i + 1 ? 0 : i + 1)}
-          >
-            {r}
-          </button>
-        ))}
-      </div>
-      <textarea
-        rows={3}
-        value={note}
-        placeholder="Kommentar: Was ist passiert, was hast du gelernt?"
-        onChange={(e) => setNote(e.target.value)}
-      />
-      <div className="row">
+      <div className="editor-top">
+        <div className="rate">
+          {RATINGS.map((r, i) => (
+            <button
+              key={i}
+              className={rating === i + 1 ? 'on' : ''}
+              aria-label={`Bewertung ${i + 1}`}
+              onClick={() => setRating(rating === i + 1 ? 0 : i + 1)}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
         <button
-          className="ghost danger"
+          className="x"
+          aria-label="Eintrag löschen"
           onClick={() => {
             if (confirm('Eintrag löschen?')) {
               onDelete(entry.id)
@@ -100,70 +98,61 @@ function Editor({
             }
           }}
         >
-          Löschen
-        </button>
-        <button
-          className="ghost primary"
-          onClick={() => {
-            onSave({
-              ...entry,
-              note: note.trim() || undefined,
-              rating: rating || undefined,
-            })
-            onClose()
-          }}
-        >
-          Speichern
+          🗑
         </button>
       </div>
+      <textarea
+        rows={2}
+        value={note}
+        placeholder="Kommentar: Was ist passiert, was hast du gelernt?"
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <button
+        className="ghost primary wide"
+        onClick={() => {
+          onSave({ ...entry, note: note.trim() || undefined, rating: rating || undefined })
+          onClose()
+        }}
+      >
+        Speichern
+      </button>
     </div>
   )
 }
 
-function EntryList({
+function EntryRows({
   entries,
   openId,
   setOpenId,
   onSave,
   onDelete,
-  withDate,
 }: {
   entries: SocialEntry[]
   openId: string | null
   setOpenId: (id: string | null) => void
   onSave: (e: SocialEntry) => void
   onDelete: (id: string) => void
-  withDate?: boolean
 }) {
   return (
-    <ul className="list">
+    <ul className="erows">
       {entries.map((e) => {
-        const k = kindOf(e.kind)
-        const d = new Date(e.at)
+        const open = openId === e.id
         return (
-          <li key={e.id} className="entry">
-            <div className="entry-row">
-              <span className="entry-icon">{k.icon}</span>
-              <div>
-                <b>
-                  {k.label} {e.rating ? RATINGS[e.rating - 1] : ''}
-                </b>
-                <small className="muted">
-                  {withDate &&
-                    `${d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })} `}
-                  {d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                </small>
-                {e.note && <p className="note">{e.note}</p>}
-              </div>
-              <button
-                className="x"
-                aria-label="Kommentar bearbeiten"
-                onClick={() => setOpenId(openId === e.id ? null : e.id)}
-              >
-                ✎
-              </button>
-            </div>
-            {openId === e.id && (
+          <li key={e.id}>
+            <button className="erow" onClick={() => setOpenId(open ? null : e.id)}>
+              <span className="eico" style={{ borderColor: KIND_COLORS[e.kind] }}>
+                <KindIcon kind={e.kind} size={16} />
+              </span>
+              <span className="emain">
+                <b>{kindOf(e.kind).short}</b>
+                {e.note && <small className="clamp">{e.note}</small>}
+              </span>
+              <span className="emeta">
+                {e.rating ? RATINGS[e.rating - 1] : ''}
+                <small>{timeOf(e)}</small>
+              </span>
+            </button>
+            {open && (
               <Editor
                 key={e.id}
                 entry={e}
@@ -202,26 +191,32 @@ function Today({
 
   return (
     <>
-      {SOCIAL_KINDS.map((k) => (
-        <section key={k.id} className="card social-row">
-          <span className="habit-icon">{k.icon}</span>
-          <div className="habit-text">
-            <b>{k.label}</b>
+      <div className="tiles">
+        {SOCIAL_KINDS.map((k) => (
+          <button
+            key={k.id}
+            className="tile"
+            aria-label={`${k.label} hinzufügen`}
+            style={{ ['--kc' as string]: KIND_COLORS[k.id] }}
+            onClick={() => add(k.id)}
+          >
+            <span className="tile-head">
+              <KindIcon kind={k.id} size={22} />
+              <span className="tile-plus">+</span>
+            </span>
+            <span className="tile-count">{todays.filter((e) => e.kind === k.id).length}</span>
+            <span className="tile-label">{k.short}</span>
             <small className="muted">
-              Heute {todays.filter((e) => e.kind === k.id).length} · Woche{' '}
-              {entries.filter((e) => e.kind === k.id && week.has(dayOf(e))).length}
+              Woche {entries.filter((e) => e.kind === k.id && week.has(dayOf(e))).length}
             </small>
-          </div>
-          <button className="plus" aria-label={`${k.label} hinzufügen`} onClick={() => add(k.id)}>
-            +
           </button>
-        </section>
-      ))}
+        ))}
+      </div>
 
       {todays.length > 0 && (
-        <section className="card">
-          <p className="muted">Heute</p>
-          <EntryList
+        <section className="card tight">
+          <p className="muted">Heute · {todays.length}</p>
+          <EntryRows
             entries={[...todays].reverse()}
             openId={openId}
             setOpenId={setOpenId}
@@ -234,6 +229,16 @@ function Today({
   )
 }
 
+function dayTitle(key: string) {
+  if (key === todayKey()) return 'Heute'
+  if (key === dayKey(addDays(new Date(), -1))) return 'Gestern'
+  return new Date(`${key}T12:00:00`).toLocaleDateString('de-DE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  })
+}
+
 function History({
   entries,
   onSave,
@@ -243,7 +248,7 @@ function History({
   onSave: (e: SocialEntry) => void
   onDelete: (id: string) => void
 }) {
-  const [filter, setFilter] = useState<SocialKind | 'all'>('approach')
+  const [filter, setFilter] = useState<SocialKind | 'all'>('all')
   const [openId, setOpenId] = useState<string | null>(null)
 
   const since = new Set(lastDays(30))
@@ -265,31 +270,31 @@ function History({
   for (const e of selected) perDay.set(dayOf(e), (perDay.get(dayOf(e)) ?? 0) + 1)
   const days = lastDays(14)
 
+  const groups = new Map<string, SocialEntry[]>()
+  for (const e of [...selected].reverse().slice(0, 80)) {
+    const k = dayOf(e)
+    groups.set(k, [...(groups.get(k) ?? []), e])
+  }
+
   return (
     <>
-      <p className="muted section">Letzte 30 Tage</p>
-      <div className="stats">
-        <Stat label="Angesprochen" value={String(approach)} />
+      <div className="stats four">
+        <Stat label="Indirekt" value={String(count('indirect'))} />
+        <Stat label="Angespr." value={String(approach)} />
         <Stat label="Kontakte" value={String(contact)} />
         <Stat label="Dates" value={String(date)} />
       </div>
+      <p className="hint tight-hint">Letzte 30 Tage</p>
 
       <section className="card">
-        <p className="muted">Quoten</p>
-        <ul className="list">
-          <li>
-            <div>
-              <b>Angesprochen → Kontakt</b>
-            </div>
-            <span className="chip">{pct(contact, approach)}</span>
-          </li>
-          <li>
-            <div>
-              <b>Kontakt → Date</b>
-            </div>
-            <span className="chip">{pct(date, contact)}</span>
-          </li>
-        </ul>
+        <div className="quote-row">
+          <span>Angesprochen → Kontakt</span>
+          <b className="chip">{pct(contact, approach)}</b>
+        </div>
+        <div className="quote-row">
+          <span>Kontakt → Date</span>
+          <b className="chip">{pct(date, contact)}</b>
+        </div>
         {rNow !== null && (
           <p className="trend">
             <b>{rNow.toFixed(1)}</b>
@@ -297,15 +302,14 @@ function History({
             {rBefore !== null && (
               <span className={rNow > rBefore ? 'ok' : rNow < rBefore ? 'bad' : 'muted'}>
                 {' '}
-                {rNow > rBefore ? '▲ besser' : rNow < rBefore ? '▼ schlechter' : '= gleich'} (vorher{' '}
-                {rBefore.toFixed(1)})
+                {rNow > rBefore ? '▲' : rNow < rBefore ? '▼' : '='} vorher {rBefore.toFixed(1)}
               </span>
             )}
           </p>
         )}
       </section>
 
-      <div className="chips">
+      <div className="chips scroll">
         <button className={`chipbtn ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
           Alle
         </button>
@@ -315,7 +319,7 @@ function History({
             className={`chipbtn ${filter === k.id ? 'on' : ''}`}
             onClick={() => setFilter(k.id)}
           >
-            {k.icon} {k.label}
+            {k.short}
           </button>
         ))}
       </div>
@@ -327,17 +331,24 @@ function History({
         />
       </section>
 
-      <section className="card">
+      <section className="card tight">
         <p className="muted">Einträge</p>
         {selected.length === 0 && <p className="hint">Noch keine Einträge.</p>}
-        <EntryList
-          entries={[...selected].reverse().slice(0, 60)}
-          openId={openId}
-          setOpenId={setOpenId}
-          onSave={onSave}
-          onDelete={onDelete}
-          withDate
-        />
+        {[...groups].map(([day, list]) => (
+          <div key={day} className="daygroup">
+            <div className="dayhead">
+              <b>{dayTitle(day)}</b>
+              <small className="muted">{list.length}</small>
+            </div>
+            <EntryRows
+              entries={list}
+              openId={openId}
+              setOpenId={setOpenId}
+              onSave={onSave}
+              onDelete={onDelete}
+            />
+          </div>
+        ))}
       </section>
     </>
   )

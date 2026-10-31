@@ -106,11 +106,11 @@ export interface SocialEntry {
   rating?: number
 }
 
-export const SOCIAL_KINDS: { id: SocialKind; label: string; icon: string }[] = [
-  { id: 'indirect', label: 'Indirekte Interaktion', icon: '👀' },
-  { id: 'approach', label: 'Angesprochen', icon: '🗣️' },
-  { id: 'contact', label: 'Kontakt ausgetauscht', icon: '📱' },
-  { id: 'date', label: 'Date', icon: '☕' },
+export const SOCIAL_KINDS: { id: SocialKind; label: string; short: string }[] = [
+  { id: 'indirect', label: 'Indirekte Interaktion', short: 'Indirekt' },
+  { id: 'approach', label: 'Angesprochen', short: 'Angesprochen' },
+  { id: 'contact', label: 'Kontakt ausgetauscht', short: 'Kontakt' },
+  { id: 'date', label: 'Date', short: 'Date' },
 ]
 
 export type Period = 'day' | 'week' | 'month' | 'year'

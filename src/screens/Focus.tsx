@@ -103,7 +103,6 @@ export default function Focus(props: Props) {
         initialCount={s.count}
         countLabel={isFocus ? 'Ablenkung · tippen' : undefined}
         onCount={(n) => saveState({ ...s, count: n })}
-        strikes={isFocus ? 3 : 2}
         rest={!isFocus}
         earlyLabel={isFocus ? 'Früher beenden' : 'Pause überspringen'}
         earlyConfirm={isFocus ? 'Fokus-Block vorzeitig beenden und speichern?' : undefined}

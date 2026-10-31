@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { cancelScheduled, hasScheduled, isAudioReady, playBowl, scheduleEnd } from '../audio'
+import { cancelScheduled, ensureGong, isAudioReady, scheduleEndAt } from '../audio'
 import { fmtClock } from '../stats'
 
 export interface TimerResult {
@@ -32,7 +32,7 @@ export default function TimerScreen({
   initialCount = 0,
   countLabel,
   onCount,
-  strikes = 3,
+  strikes = 1,
   rest,
   earlyLabel = 'Früher beenden',
   earlyConfirm,
@@ -44,7 +44,7 @@ export default function TimerScreen({
   const endAt = startedAt + plannedMin * 60_000
   const [now, setNow] = useState(() => Date.now())
   const [count, setCount] = useState(initialCount)
-  const [audioOk, setAudioOk] = useState(isAudioReady())
+  const [audioOk, setAudioOk] = useState(true)
   const finished = useRef(false)
   const countRef = useRef(count)
 
@@ -52,7 +52,7 @@ export default function TimerScreen({
     if (finished.current) return
     finished.current = true
     const end = completed ? endAt : Date.now()
-    if (completed && !hasScheduled() && Date.now() - endAt < 60_000) scheduleEnd(0, strikes)
+    if (completed && Date.now() - endAt < 60_000) ensureGong(strikes)
     if (!completed) cancelScheduled()
     onFinish({
       completed,
@@ -65,8 +65,7 @@ export default function TimerScreen({
 
   useEffect(() => {
     if (Date.now() < endAt) {
-      if (Date.now() - startedAt < 3000) playBowl()
-      scheduleEnd((endAt - Date.now()) / 1000, strikes)
+      scheduleEndAt(endAt, strikes, { startBowl: Date.now() - startedAt < 3000, title })
     }
     const tick = () => {
       const t = Date.now()
@@ -76,12 +75,11 @@ export default function TimerScreen({
     }
     tick()
     const id = setInterval(tick, 250)
-    // Nach dem Aufwachen den Gong neu auf die Restzeit ausrichten
+    // Nach dem Aufwachen prüfen, ob die geplante Audio-Datei noch läuft
     const onVis = () => {
       if (document.visibilityState !== 'visible') return
       tick()
-      const left = (endAt - Date.now()) / 1000
-      if (left > 0) scheduleEnd(left, strikes)
+      if (Date.now() < endAt) scheduleEndAt(endAt, strikes, { title })
     }
     document.addEventListener('visibilitychange', onVis)
     return () => {

@@ -164,16 +164,6 @@ button.topic:active {
   opacity: 0.6;
 }
 
-.topic-icon {
-  font-size: 30px;
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
 .topic-body {
   flex: 1;
   display: flex;
@@ -936,77 +926,240 @@ textarea {
   margin: 10px 0;
 }
 
-.social-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-}
-
-.social-row .habit-text {
-  flex: 1;
-}
-
-.plus {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 0;
-  font-size: 30px;
-  line-height: 1;
-  color: #fff;
-  background: linear-gradient(135deg, var(--accent), #5b8cff);
-  box-shadow: 0 6px 18px rgba(124, 92, 255, 0.35);
+.topic-svg {
   flex: none;
 }
 
-.plus:active {
-  transform: scale(0.92);
-}
-
-.entry {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.entry-row {
-  display: flex;
-  align-items: flex-start;
+/* Kacheln: ein Tipp = ein Eintrag */
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
-.entry-row > div {
-  flex: 1;
+.tile {
+  position: relative;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--kc) 35%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--kc) 16%, #0f0f12), var(--card) 70%);
+  text-align: left;
+  transition: transform 0.12s ease;
+}
+
+.tile:active {
+  transform: scale(0.96);
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.tile-plus {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--kc);
+  color: #000;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tile-count {
+  margin-top: 6px;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.tile-label {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* Kompakte Eintragszeilen */
+.card.tight {
+  padding: 14px 14px 6px;
+}
+
+.erows {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.erows > li {
+  border-top: 1px solid var(--border);
+}
+
+.erows > li:first-child {
+  border-top: 0;
+}
+
+.erow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.eico {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1.5px solid;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.emain {
+  flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.entry-icon {
-  font-size: 22px;
+.emain b {
+  font-size: 15px;
 }
 
-.note {
-  margin: 4px 0 0;
-  font-size: 14px;
-  line-height: 1.4;
-  color: #d4d4d8;
-  white-space: pre-wrap;
-  word-break: break-word;
+.emain small {
+  color: var(--muted);
+}
+
+.clamp {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 16px;
+}
+
+.emeta small {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .editor {
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 16px;
+  margin: 0 0 10px;
+  padding: 10px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
 }
 
-.scale.mini button {
-  padding: 8px 0;
-  font-size: 20px;
+.editor textarea {
+  margin: 8px 0;
+}
+
+.editor-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rate {
+  display: flex;
+  gap: 6px;
+}
+
+.rate button {
+  width: 38px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 18px;
+  padding: 0;
+}
+
+.rate button.on {
+  background: rgba(124, 92, 255, 0.45);
+  border-color: transparent;
+}
+
+.daygroup {
+  margin-top: 8px;
+}
+
+.dayhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0 0;
+  font-size: 13px;
+}
+
+.stats.four {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stats.four .stat {
+  padding: 12px 4px;
+}
+
+.stats.four .stat b {
+  font-size: 22px;
+}
+
+.stats.four small {
+  font-size: 10px;
+}
+
+.tight-hint {
+  margin: -6px 2px 0;
+}
+
+.quote-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 15px;
+}
+
+.chips.scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin: 0 -18px;
+  padding: 0 18px;
+  scrollbar-width: none;
+}
+
+.chips.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chips.scroll .chipbtn {
+  white-space: nowrap;
+  flex: none;
 }
 
 .chipbtn.on {
