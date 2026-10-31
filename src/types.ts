@@ -40,3 +40,87 @@ export const MINUTE_OPTIONS = [5, 10, 12, 15, 20, 25, 30]
 export function typeLabel(id: string) {
   return MEDITATION_TYPES.find((t) => t.id === id)?.label ?? id
 }
+
+export interface Book {
+  id: string
+  title: string
+  author?: string
+  totalPages?: number
+  startedAt: string
+  finishedAt?: string
+}
+
+export interface ReadingLog {
+  id: string
+  bookId: string
+  day: string
+  minutes: number
+  pages: number
+}
+
+// check: Ja/Nein pro Tag, target = Tage pro Woche. count: Zähler pro Tag, target = Tagesziel
+export type HabitKind = 'check' | 'count'
+
+export interface Habit {
+  id: string
+  name: string
+  icon: string
+  kind: HabitKind
+  target: number
+  createdAt: string
+}
+
+export interface HabitLog {
+  id: string
+  habitId: string
+  day: string
+  count: number
+}
+
+export interface MoodEntry {
+  id: string
+  at: string
+  mood: number
+  energy: number
+  note?: string
+}
+
+export interface FocusSession {
+  id: string
+  startedAt: string
+  plannedMin: number
+  actualSec: number
+  task: string
+  distractions: number
+  completed: boolean
+}
+
+export type Topic = 'meditation' | 'reading' | 'habits' | 'mood' | 'focus' | 'social'
+export type SocialKind = 'indirect' | 'approach' | 'contact' | 'date'
+
+export interface SocialEntry {
+  id: string
+  at: string
+  kind: SocialKind
+  note?: string
+  rating?: number
+}
+
+export const SOCIAL_KINDS: { id: SocialKind; label: string; icon: string }[] = [
+  { id: 'indirect', label: 'Indirekte Interaktion', icon: '👀' },
+  { id: 'approach', label: 'Angesprochen', icon: '🗣️' },
+  { id: 'contact', label: 'Kontakt ausgetauscht', icon: '📱' },
+  { id: 'date', label: 'Date', icon: '☕' },
+]
+
+export type Period = 'day' | 'week' | 'month' | 'year'
+
+export interface Goal {
+  id: string
+  topic: Topic
+  metric: string
+  period: Period
+  target: number
+  refId?: string
+  createdAt: string
+}

@@ -1,9 +1,9 @@
 :root {
-  --bg: #0b1020;
-  --card: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.1);
-  --text: #f1f5f9;
-  --muted: #94a3b8;
+  --bg: #000;
+  --card: #0f0f12;
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #f4f4f5;
+  --muted: #8e8e99;
   --accent: #7c5cff;
   --accent2: #22d3ee;
   --ok: #34d399;
@@ -27,8 +27,7 @@ body {
 
 body {
   background:
-    radial-gradient(600px 400px at 90% -5%, rgba(124, 92, 255, 0.35), transparent 70%),
-    radial-gradient(500px 400px at -10% 30%, rgba(34, 211, 238, 0.18), transparent 70%),
+    radial-gradient(500px 260px at 100% -4%, rgba(124, 92, 255, 0.13), transparent 70%),
     var(--bg);
   background-attachment: fixed;
 }
@@ -60,7 +59,7 @@ h1 {
   margin: 2px 0 0;
   font-size: 34px;
   letter-spacing: -0.03em;
-  background: linear-gradient(90deg, #fff, #c4b5fd);
+  background: linear-gradient(90deg, #fff, #b4b4c0);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -151,7 +150,7 @@ h1 {
   text-align: left;
   border: 1px solid var(--border);
   border-radius: 22px;
-  background: linear-gradient(145deg, rgba(124, 92, 255, 0.28), rgba(34, 211, 238, 0.1));
+  background: var(--card);
   transition: transform 0.12s ease;
 }
 
@@ -259,7 +258,7 @@ select {
 }
 
 select option {
-  background: #1a2036;
+  background: #18181b;
   color: var(--text);
 }
 
@@ -565,4 +564,452 @@ select option {
   color: var(--muted);
   font-size: 16px;
   padding: 6px;
+}
+
+input[type='text'],
+input[type='date'] {
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 17px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.ghost.wide {
+  width: 100%;
+  flex: none;
+}
+
+.ghost.primary {
+  background: rgba(124, 92, 255, 0.35);
+  border-color: transparent;
+}
+
+.ghost:disabled {
+  opacity: 0.4;
+}
+
+.rest .ring-fg {
+  stroke: var(--ok);
+}
+
+.rest .clock {
+  color: var(--ok);
+}
+
+.stepper.small {
+  gap: 10px;
+  margin: 0;
+}
+
+.stepper.small span {
+  font-size: 22px;
+  min-width: 28px;
+  text-align: center;
+}
+
+.stepper.small button {
+  width: 38px;
+  height: 38px;
+  font-size: 22px;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+/* Fortschrittsbalken */
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width 0.3s ease;
+}
+
+/* Ziele */
+.goal-top,
+.goalrow-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goal-top b,
+.goalrow-top b {
+  flex: 1;
+  font-size: 15px;
+}
+
+.goal-num {
+  margin: 8px 0;
+  font-size: 15px;
+}
+
+.goal-num b {
+  font-size: 30px;
+}
+
+.status {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+}
+
+.status.done {
+  background: rgba(52, 211, 153, 0.18);
+  color: var(--ok);
+}
+
+.status.ontrack {
+  background: rgba(34, 211, 238, 0.16);
+  color: var(--accent2);
+}
+
+.status.behind {
+  background: rgba(251, 146, 60, 0.18);
+  color: var(--bad);
+}
+
+.hist {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  align-items: flex-end;
+}
+
+.hcol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hcol small {
+  font-size: 9px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hbar {
+  width: 100%;
+  height: 44px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.hbar i {
+  display: block;
+  width: 100%;
+  background: rgba(124, 92, 255, 0.55);
+}
+
+.hcol.hit .hbar i {
+  background: var(--ok);
+}
+
+.hcol.cur .hbar {
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.goals {
+  margin: 0;
+}
+
+.goalrow {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+/* Bücher */
+.book {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.book-top {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.book-top b {
+  font-size: 16px;
+}
+
+/* Gewohnheiten */
+.habit-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.habit-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  min-width: 0;
+}
+
+.habit-icon {
+  font-size: 26px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  flex: none;
+}
+
+.habit-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.habit.done {
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.check {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  color: transparent;
+  font-size: 24px;
+  flex: none;
+}
+
+.check.on {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #05281d;
+}
+
+.weekdots {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.wd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.wd span {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.wd.on span {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+}
+
+.wd.today span {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
+}
+
+.wd:disabled {
+  opacity: 0.4;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chipbtn {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Stimmung */
+.scale {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.scale button {
+  padding: 14px 0;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 24px;
+}
+
+.scale button.on {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-color: transparent;
+  transform: scale(1.05);
+}
+
+.scale-word {
+  display: block;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Soziale Interaktion */
+textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+  margin: 10px 0;
+}
+
+.social-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.social-row .habit-text {
+  flex: 1;
+}
+
+.plus {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 0;
+  font-size: 30px;
+  line-height: 1;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #5b8cff);
+  box-shadow: 0 6px 18px rgba(124, 92, 255, 0.35);
+  flex: none;
+}
+
+.plus:active {
+  transform: scale(0.92);
+}
+
+.entry {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.entry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.entry-row > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entry-icon {
+  font-size: 22px;
+}
+
+.note {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #d4d4d8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editor {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.scale.mini button {
+  padding: 8px 0;
+  font-size: 20px;
+}
+
+.chipbtn.on {
+  background: rgba(124, 92, 255, 0.35);
+  border-color: transparent;
 }

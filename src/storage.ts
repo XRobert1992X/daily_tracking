@@ -1,8 +1,93 @@
 import { get, set } from 'idb-keyval'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ActiveSession, MeditationSession } from './types'
+import type { ActiveSession } from './types'
 
-const KEY = 'meditation-sessions'
+export const KEYS = {
+  meditation: 'meditation-sessions',
+  books: 'books',
+  readingLogs: 'reading-logs',
+  habits: 'habits',
+  habitLogs: 'habit-logs',
+  moods: 'moods',
+  focus: 'focus-sessions',
+  goals: 'goals',
+  social: 'social',
+} as const
+
+export type StoreName = keyof typeof KEYS
+export type Row = { id: string }
+
+export interface Collection<T extends Row> {
+  items: T[]
+  upsert: (item: T) => void
+  remove: (id: string) => void
+  removeWhere: (fn: (item: T) => boolean) => void
+  // Methodensyntax, damit Collections verschiedener Typen als Row-Liste nutzbar sind
+  merge(list: T[]): number
+}
+
+export function useCollection<T extends Row>(
+  name: StoreName,
+  sort?: (a: T, b: T) => number,
+): Collection<T> {
+  const [items, setItems] = useState<T[]>([])
+  const ref = useRef<T[]>([])
+  const sortRef = useRef(sort)
+
+  const commit = useCallback((next: T[]) => {
+    const out = sortRef.current ? [...next].sort(sortRef.current) : next
+    ref.current = out
+    setItems(out)
+    void set(KEYS[name], out)
+  }, [name])
+
+  useEffect(() => {
+    get<T[]>(KEYS[name])
+      .then((v) => {
+        const list = v ?? []
+        ref.current = sortRef.current ? [...list].sort(sortRef.current) : list
+        setItems(ref.current)
+      })
+      .catch(() => {})
+  }, [name])
+
+  const upsert = useCallback(
+    (item: T) => {
+      const cur = ref.current
+      commit(
+        cur.some((x) => x.id === item.id)
+          ? cur.map((x) => (x.id === item.id ? item : x))
+          : [...cur, item],
+      )
+    },
+    [commit],
+  )
+  const remove = useCallback(
+    (id: string) => commit(ref.current.filter((x) => x.id !== id)),
+    [commit],
+  )
+  const removeWhere = useCallback(
+    (fn: (item: T) => boolean) => commit(ref.current.filter((x) => !fn(x))),
+    [commit],
+  )
+  const merge = useCallback(
+    (list: T[]) => {
+      const known = new Set(ref.current.map((x) => x.id))
+      const fresh = list.filter((x) => !known.has(x.id))
+      if (fresh.length) commit([...ref.current, ...fresh])
+      return fresh.length
+    },
+    [commit],
+  )
+
+  return { items, upsert, remove, removeWhere, merge }
+}
+
+// Bittet Safari, die Daten nicht automatisch zu löschen
+export function requestPersistentStorage() {
+  void navigator.storage?.persist?.()
+}
+
 const ACTIVE_KEY = 'progress:active'
 
 export function loadActive(): ActiveSession | null {
@@ -22,63 +107,20 @@ export function clearActive() {
   localStorage.removeItem(ACTIVE_KEY)
 }
 
-export function useSessions() {
-  const [sessions, setSessions] = useState<MeditationSession[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const ref = useRef<MeditationSession[]>([])
+export type BackupData = { [K in StoreName]?: Row[] }
 
-  useEffect(() => {
-    get<MeditationSession[]>(KEY)
-      .then((v) => {
-        ref.current = v ?? []
-        setSessions(ref.current)
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-    // Bittet Safari, die Daten nicht automatisch zu löschen
-    void navigator.storage?.persist?.()
-  }, [])
-
-  const commit = useCallback((next: MeditationSession[]) => {
-    const sorted = [...next].sort((a, b) => a.startedAt.localeCompare(b.startedAt))
-    ref.current = sorted
-    setSessions(sorted)
-    void set(KEY, sorted)
-  }, [])
-
-  const add = useCallback(
-    (s: MeditationSession) => commit([...ref.current, s]),
-    [commit],
-  )
-  const remove = useCallback(
-    (id: string) => commit(ref.current.filter((s) => s.id !== id)),
-    [commit],
-  )
-  const merge = useCallback(
-    (incoming: MeditationSession[]) => {
-      const known = new Set(ref.current.map((s) => s.id))
-      const fresh = incoming.filter((s) => !known.has(s.id))
-      commit([...ref.current, ...fresh])
-      return fresh.length
-    },
-    [commit],
-  )
-
-  return { sessions, loaded, add, remove, merge }
-}
-
-export async function exportBackup(sessions: MeditationSession[]) {
-  const json = JSON.stringify({ version: 1, meditation: sessions }, null, 2)
+export async function exportBackup(data: Record<StoreName, Row[]>) {
+  const json = JSON.stringify({ version: 2, ...data }, null, 2)
   const file = new File([json], `progress-backup-${new Date().toLocaleDateString('sv-SE')}.json`, {
     type: 'application/json',
   })
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] })
-      return
     } catch {
-      return
+      // abgebrochen
     }
+    return
   }
   const url = URL.createObjectURL(file)
   const a = document.createElement('a')
@@ -88,15 +130,17 @@ export async function exportBackup(sessions: MeditationSession[]) {
   URL.revokeObjectURL(url)
 }
 
-export async function parseBackup(file: File): Promise<MeditationSession[]> {
+export async function parseBackup(file: File): Promise<BackupData> {
   const data = JSON.parse(await file.text())
-  const list: unknown = data?.meditation
-  if (!Array.isArray(list)) throw new Error('Ungültige Datei')
-  return list.filter(
-    (s): s is MeditationSession =>
-      typeof s?.id === 'string' &&
-      typeof s?.startedAt === 'string' &&
-      typeof s?.actualSec === 'number' &&
-      typeof s?.interruptions === 'number',
-  )
+  const out: BackupData = {}
+  let found = false
+  for (const name of Object.keys(KEYS) as StoreName[]) {
+    const list: unknown = data?.[name]
+    if (Array.isArray(list)) {
+      out[name] = list.filter((x): x is Row => typeof x?.id === 'string')
+      found = true
+    }
+  }
+  if (!found) throw new Error('Ungültige Datei')
+  return out
 }

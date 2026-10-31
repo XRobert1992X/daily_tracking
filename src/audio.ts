@@ -84,12 +84,12 @@ export function playBowl() {
   strike(ctx.currentTime, 0.35)
 }
 
-// Gong als "Wecker": drei Schläge im Abstand von 6 Sekunden
-export function scheduleEnd(delaySec: number) {
+// Gong als "Wecker": mehrere Schläge im Abstand von 6 Sekunden
+export function scheduleEnd(delaySec: number, strikes = 3) {
   if (!ctx) return
   cancelScheduled()
   const t = ctx.currentTime + Math.max(0, delaySec)
-  for (let i = 0; i < 3; i++) strike(t + i * 6, 0.7)
+  for (let i = 0; i < strikes; i++) strike(t + i * 6, 0.7)
 }
 
 export function cancelScheduled() {

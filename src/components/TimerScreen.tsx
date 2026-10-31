@@ -1,26 +1,49 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  cancelScheduled,
-  hasScheduled,
-  isAudioReady,
-  playBowl,
-  scheduleEnd,
-} from '../audio'
-import { saveActive } from '../storage'
+import { cancelScheduled, hasScheduled, isAudioReady, playBowl, scheduleEnd } from '../audio'
 import { fmtClock } from '../stats'
-import { typeLabel } from '../types'
-import type { ActiveSession, FinishedSession } from '../types'
+
+export interface TimerResult {
+  completed: boolean
+  actualSec: number
+  count: number
+}
 
 interface Props {
-  active: ActiveSession
-  onFinish: (r: FinishedSession) => void
+  title: string
+  startedAt: number
+  plannedMin: number
+  initialCount?: number
+  countLabel?: string
+  onCount?: (n: number) => void
+  strikes?: number
+  rest?: boolean
+  earlyLabel?: string
+  earlyConfirm?: string
+  cancelLabel?: string
+  cancelConfirm?: string
+  onFinish: (r: TimerResult) => void
   onCancel: () => void
 }
 
-export default function SessionScreen({ active, onFinish, onCancel }: Props) {
-  const endAt = active.startedAt + active.plannedMin * 60_000
+export default function TimerScreen({
+  title,
+  startedAt,
+  plannedMin,
+  initialCount = 0,
+  countLabel,
+  onCount,
+  strikes = 3,
+  rest,
+  earlyLabel = 'Früher beenden',
+  earlyConfirm,
+  cancelLabel = 'Abbrechen',
+  cancelConfirm,
+  onFinish,
+  onCancel,
+}: Props) {
+  const endAt = startedAt + plannedMin * 60_000
   const [now, setNow] = useState(() => Date.now())
-  const [count, setCount] = useState(active.interruptions)
+  const [count, setCount] = useState(initialCount)
   const [audioOk, setAudioOk] = useState(isAudioReady())
   const finished = useRef(false)
   const countRef = useRef(count)
@@ -29,25 +52,21 @@ export default function SessionScreen({ active, onFinish, onCancel }: Props) {
     if (finished.current) return
     finished.current = true
     const end = completed ? endAt : Date.now()
-    if (completed && !hasScheduled()) scheduleEnd(0)
+    if (completed && !hasScheduled() && Date.now() - endAt < 60_000) scheduleEnd(0, strikes)
     if (!completed) cancelScheduled()
     onFinish({
-      startedAt: active.startedAt,
-      plannedMin: active.plannedMin,
-      type: active.type,
-      interruptions: countRef.current,
-      actualSec: Math.max(1, Math.round((end - active.startedAt) / 1000)),
       completed,
+      actualSec: Math.max(1, Math.round((end - startedAt) / 1000)),
+      count: countRef.current,
     })
   }
   const finishRef = useRef(finish)
   finishRef.current = finish
 
   useEffect(() => {
-    saveActive({ ...active, interruptions: countRef.current })
     if (Date.now() < endAt) {
-      if (Date.now() - active.startedAt < 3000) playBowl()
-      scheduleEnd((endAt - Date.now()) / 1000)
+      if (Date.now() - startedAt < 3000) playBowl()
+      scheduleEnd((endAt - Date.now()) / 1000, strikes)
     }
     const tick = () => {
       const t = Date.now()
@@ -62,7 +81,7 @@ export default function SessionScreen({ active, onFinish, onCancel }: Props) {
       if (document.visibilityState !== 'visible') return
       tick()
       const left = (endAt - Date.now()) / 1000
-      if (left > 0) scheduleEnd(left)
+      if (left > 0) scheduleEnd(left, strikes)
     }
     document.addEventListener('visibilitychange', onVis)
     return () => {
@@ -95,19 +114,23 @@ export default function SessionScreen({ active, onFinish, onCancel }: Props) {
     const next = count + 1
     countRef.current = next
     setCount(next)
-    saveActive({ ...active, interruptions: next })
+    onCount?.(next)
     navigator.vibrate?.(20)
   }
 
-  const total = active.plannedMin * 60
+  const total = plannedMin * 60
   const left = Math.max(0, (endAt - now) / 1000)
   const progress = Math.min(1, 1 - left / total)
   const R = 120
   const C = 2 * Math.PI * R
 
+  const ask = (text: string | undefined, run: () => void) => {
+    if (!text || confirm(text)) run()
+  }
+
   return (
-    <main className="app session">
-      <p className="muted center">{typeLabel(active.type)}</p>
+    <main className={`app session ${rest ? 'rest' : ''}`}>
+      <p className="muted center">{title}</p>
 
       <div className="ring-wrap">
         <svg viewBox="0 0 280 280" className="ring">
@@ -129,42 +152,39 @@ export default function SessionScreen({ active, onFinish, onCancel }: Props) {
         </svg>
         <div className="ring-text">
           <div className="clock">{fmtClock(left)}</div>
-          <small className="muted">von {active.plannedMin} Min</small>
+          <small className="muted">von {plannedMin} Min</small>
         </div>
       </div>
 
-      <button className="wander" onClick={tap}>
-        <span className="wander-count">{count}</span>
-        <span>Abgeschweift · tippen</span>
-      </button>
+      {countLabel && (
+        <button className="wander" onClick={tap}>
+          <span className="wander-count">{count}</span>
+          <span>{countLabel}</span>
+        </button>
+      )}
 
       {!audioOk && (
         <p className="banner" onClick={() => setAudioOk(isAudioReady())}>
-          Ton ist noch aus. Tippe einmal irgendwo auf den Bildschirm, damit der Gong
-          später erklingt.
+          Ton ist noch aus. Tippe einmal irgendwo auf den Bildschirm, damit der Gong später
+          erklingt.
         </p>
       )}
 
       <div className="row">
-        <button
-          className="ghost"
-          onClick={() => {
-            if (confirm('Meditation vorzeitig beenden und speichern?')) finish(false)
-          }}
-        >
-          Früher beenden
+        <button className="ghost" onClick={() => ask(earlyConfirm, () => finish(false))}>
+          {earlyLabel}
         </button>
         <button
           className="ghost danger"
-          onClick={() => {
-            if (confirm('Meditation verwerfen? Es wird nichts gespeichert.')) {
+          onClick={() =>
+            ask(cancelConfirm, () => {
               finished.current = true
               cancelScheduled()
               onCancel()
-            }
-          }}
+            })
+          }
         >
-          Abbrechen
+          {cancelLabel}
         </button>
       </div>
     </main>

@@ -1,6 +1,12 @@
-import { useRef, useState } from 'react'
-import { parseBackup, exportBackup } from '../storage'
-import { avgRate, dayKey, ratePer10, streak, totalMinutes, trend } from '../stats'
+import { useState } from 'react'
+import { unlockAudio } from '../audio'
+import { BarChart, Heatmap } from '../components/charts'
+import GoalsPanel from '../components/GoalsPanel'
+import TimerScreen from '../components/TimerScreen'
+import { DurationPicker, Header, Seg, Stat, parseMinutes } from '../components/ui'
+import type { AppData } from '../goals'
+import { clearActive, loadActive, saveActive } from '../storage'
+import { avgRate10, dayKey, dayStreak, fmtClock, shortDate, sum, trend10 } from '../stats'
 import {
   DEFAULT_MINUTES,
   DEFAULT_TYPE,
@@ -8,70 +14,138 @@ import {
   MINUTE_OPTIONS,
   typeLabel,
 } from '../types'
-import type { MeditationSession } from '../types'
-
-export interface Preset {
-  type: string
-  plannedMin: number
-}
+import type { ActiveSession, FinishedSession, Goal, MeditationSession } from '../types'
+import DoneScreen from './Done'
 
 interface Props {
-  sessions: MeditationSession[]
-  onBack: () => void
-  onStart: (p: Preset) => void
+  data: AppData
+  goals: Goal[]
+  onUpsertGoal: (g: Goal) => void
+  onRemoveGoal: (id: string) => void
+  onSave: (s: MeditationSession) => void
   onDelete: (id: string) => void
-  onImport: (list: MeditationSession[]) => number
+  onBack: () => void
 }
 
+type Phase =
+  | { name: 'menu' }
+  | { name: 'run'; active: ActiveSession }
+  | { name: 'done'; result: FinishedSession }
+
 export default function Meditation({
-  sessions,
-  onBack,
-  onStart,
+  data,
+  goals,
+  onUpsertGoal,
+  onRemoveGoal,
+  onSave,
   onDelete,
-  onImport,
+  onBack,
 }: Props) {
-  const [tab, setTab] = useState<'start' | 'verlauf'>('start')
+  const [tab, setTab] = useState<'start' | 'verlauf' | 'ziele'>('start')
+  const [phase, setPhase] = useState<Phase>(() => {
+    const a = loadActive()
+    return a ? { name: 'run', active: a } : { name: 'menu' }
+  })
+
+  if (phase.name === 'run') {
+    const a = phase.active
+    return (
+      <TimerScreen
+        title={typeLabel(a.type)}
+        startedAt={a.startedAt}
+        plannedMin={a.plannedMin}
+        initialCount={a.interruptions}
+        countLabel="Abgeschweift · tippen"
+        onCount={(n) => saveActive({ ...a, interruptions: n })}
+        earlyConfirm="Meditation vorzeitig beenden und speichern?"
+        cancelConfirm="Meditation verwerfen? Es wird nichts gespeichert."
+        onFinish={(r) => {
+          clearActive()
+          setPhase({
+            name: 'done',
+            result: {
+              startedAt: a.startedAt,
+              plannedMin: a.plannedMin,
+              type: a.type,
+              interruptions: r.count,
+              actualSec: r.actualSec,
+              completed: r.completed,
+            },
+          })
+        }}
+        onCancel={() => {
+          clearActive()
+          setPhase({ name: 'menu' })
+        }}
+      />
+    )
+  }
+
+  if (phase.name === 'done') {
+    const r = phase.result
+    return (
+      <DoneScreen
+        completed={r.completed}
+        subtitle={`${typeLabel(r.type)} · ${fmtClock(r.actualSec)} Min`}
+        question="Wie oft bist du abgeschweift?"
+        initial={r.interruptions}
+        onSave={(interruptions) => {
+          onSave({
+            id: crypto.randomUUID(),
+            startedAt: new Date(r.startedAt).toISOString(),
+            plannedMin: r.plannedMin,
+            actualSec: r.actualSec,
+            type: r.type,
+            interruptions,
+            completed: r.completed,
+          })
+          setPhase({ name: 'menu' })
+        }}
+        onDiscard={() => setPhase({ name: 'menu' })}
+      />
+    )
+  }
+
   return (
     <main className="app">
-      <header className="header">
-        <button className="back" onClick={onBack} aria-label="Zurück">
-          ‹
-        </button>
-        <h1>Meditation</h1>
-        <span style={{ width: 36 }} />
-      </header>
-
-      <div className="seg">
-        <button className={tab === 'start' ? 'on' : ''} onClick={() => setTab('start')}>
-          Start
-        </button>
-        <button className={tab === 'verlauf' ? 'on' : ''} onClick={() => setTab('verlauf')}>
-          Verlauf
-        </button>
-      </div>
-
-      {tab === 'start' ? (
-        <Setup onStart={onStart} />
-      ) : (
-        <History
-          sessions={sessions}
-          onDelete={onDelete}
-          onImport={onImport}
+      <Header title="Meditation" onBack={onBack} />
+      <Seg
+        value={tab}
+        onChange={setTab}
+        options={[
+          { id: 'start', label: 'Start' },
+          { id: 'verlauf', label: 'Verlauf' },
+          { id: 'ziele', label: 'Ziele' },
+        ]}
+      />
+      {tab === 'start' && (
+        <Setup
+          onStart={(type, plannedMin) => {
+            unlockAudio()
+            const a: ActiveSession = { startedAt: Date.now(), plannedMin, type, interruptions: 0 }
+            saveActive(a)
+            setPhase({ name: 'run', active: a })
+          }}
+        />
+      )}
+      {tab === 'verlauf' && <History sessions={data.meditation} onDelete={onDelete} />}
+      {tab === 'ziele' && (
+        <GoalsPanel
+          topic="meditation"
+          data={data}
+          goals={goals}
+          onUpsert={onUpsertGoal}
+          onRemove={onRemoveGoal}
         />
       )}
     </main>
   )
 }
 
-function Setup({ onStart }: { onStart: (p: Preset) => void }) {
+function Setup({ onStart }: { onStart: (type: string, min: number) => void }) {
   const [type, setType] = useState(DEFAULT_TYPE)
   const [text, setText] = useState(String(DEFAULT_MINUTES))
-
-  const parsed = parseInt(text, 10)
-  const valid = parsed >= 1 && parsed <= 240
-  const minutes = valid ? parsed : 0
-  // Dropdown zeigt den Standardwert nur, wenn die Eingabe genau dazu passt
-  const selected = MINUTE_OPTIONS.includes(parsed) && String(parsed) === text ? text : ''
+  const minutes = parseMinutes(text)
 
   return (
     <>
@@ -86,46 +160,16 @@ function Setup({ onStart }: { onStart: (p: Preset) => void }) {
             ))}
           </select>
         </label>
-
-        <div className="field">
-          <span className="muted">Dauer in Minuten</span>
-          <div className="duration">
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={240}
-              placeholder="Min"
-              aria-label="Minuten eingeben"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onFocus={(e) => e.target.select()}
-            />
-            <select
-              aria-label="Standarddauer wählen"
-              value={selected}
-              onChange={(e) => setText(e.target.value)}
-            >
-              <option value="" disabled>
-                Auswählen…
-              </option>
-              {MINUTE_OPTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {m} Minuten
-                </option>
-              ))}
-            </select>
-          </div>
-          {text !== '' && !valid && <small className="bad">Bitte 1 bis 240 Minuten eingeben</small>}
-        </div>
+        <DurationPicker
+          label="Dauer in Minuten"
+          text={text}
+          onText={setText}
+          options={MINUTE_OPTIONS}
+        />
       </section>
 
-      <button
-        className="cta"
-        disabled={!valid}
-        onClick={() => onStart({ type, plannedMin: minutes })}
-      >
-        {valid ? `▶ ${minutes} Min starten` : '▶ Starten'}
+      <button className="cta" disabled={!minutes} onClick={() => onStart(type, minutes)}>
+        {minutes ? `▶ ${minutes} Min starten` : '▶ Starten'}
       </button>
     </>
   )
@@ -134,24 +178,27 @@ function Setup({ onStart }: { onStart: (p: Preset) => void }) {
 function History({
   sessions,
   onDelete,
-  onImport,
 }: {
   sessions: MeditationSession[]
   onDelete: (id: string) => void
-  onImport: (list: MeditationSession[]) => number
 }) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [msg, setMsg] = useState('')
-  const t = trend(sessions)
+  const counted = sessions.map((s) => ({ count: s.interruptions, sec: s.actualSec }))
+  const t = trend10(counted)
   const better = t.recent !== null && t.previous !== null && t.recent < t.previous
   const worse = t.recent !== null && t.previous !== null && t.recent > t.previous
+  const minutes = new Map<string, number>()
+  for (const s of sessions) {
+    const k = dayKey(new Date(s.startedAt))
+    minutes.set(k, (minutes.get(k) ?? 0) + s.actualSec / 60)
+  }
+  const overall = avgRate10(counted)
 
   return (
     <>
       <div className="stats">
         <Stat label="Sitzungen" value={String(sessions.length)} />
-        <Stat label="Serie (Tage)" value={String(streak(sessions))} />
-        <Stat label="Minuten" value={String(totalMinutes(sessions))} />
+        <Stat label="Serie (Tage)" value={String(dayStreak(new Set(minutes.keys())))} />
+        <Stat label="Minuten" value={String(Math.round(sum(sessions.map((s) => s.actualSec)) / 60))} />
       </div>
 
       <section className="card">
@@ -160,7 +207,14 @@ function History({
           <p className="hint">Noch keine Sitzungen. Starte deine erste Meditation.</p>
         ) : (
           <>
-            <Chart sessions={sessions} />
+            <BarChart
+              trend
+              data={sessions.slice(-20).map((s) => ({
+                key: s.id,
+                value: s.interruptions,
+                label: shortDate(dayKey(new Date(s.startedAt))),
+              }))}
+            />
             <p className="trend">
               <b>{t.recent === null ? '–' : t.recent.toFixed(1)}</b>
               <span className="muted"> pro 10 Min (letzte 5)</span>
@@ -178,7 +232,7 @@ function History({
 
       <section className="card">
         <p className="muted">Letzte 5 Wochen</p>
-        <Heatmap sessions={sessions} />
+        <Heatmap values={minutes} level={(v) => (v === 0 ? 0 : v < 10 ? 1 : v < 20 ? 2 : 3)} />
       </section>
 
       <section className="card">
@@ -186,7 +240,7 @@ function History({
         <ul className="list">
           {[...sessions].reverse().map((s) => {
             const d = new Date(s.startedAt)
-            const r = ratePer10(s)
+            const r = s.actualSec >= 60 ? s.interruptions / (s.actualSec / 600) : null
             return (
               <li key={s.id}>
                 <div>
@@ -214,153 +268,10 @@ function History({
             )
           })}
         </ul>
-        {avgRate(sessions) !== null && (
-          <p className="hint">Ø {avgRate(sessions)!.toFixed(1)} Unterbrechungen pro 10 Min</p>
+        {overall !== null && (
+          <p className="hint">Ø {overall.toFixed(1)} Unterbrechungen pro 10 Min</p>
         )}
       </section>
-
-      <section className="card">
-        <p className="muted">Backup</p>
-        <div className="row">
-          <button className="ghost" onClick={() => void exportBackup(sessions)}>
-            Exportieren
-          </button>
-          <button className="ghost" onClick={() => fileRef.current?.click()}>
-            Importieren
-          </button>
-        </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (!f) return
-            try {
-              const added = onImport(await parseBackup(f))
-              setMsg(`${added} Sitzungen importiert`)
-            } catch {
-              setMsg('Datei konnte nicht gelesen werden')
-            }
-          }}
-        />
-        {msg && <p className="hint">{msg}</p>}
-        <p className="hint">
-          Die Daten liegen nur auf diesem Gerät. Exportiere regelmäßig ein Backup.
-        </p>
-      </section>
-    </>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card stat">
-      <b>{value}</b>
-      <small className="muted">{label}</small>
-    </div>
-  )
-}
-
-function Chart({ sessions }: { sessions: MeditationSession[] }) {
-  const data = sessions.slice(-20)
-  const W = 320
-  const H = 140
-  const pad = 20
-  const max = Math.max(5, ...data.map((s) => s.interruptions))
-  const bw = (W - pad * 2) / data.length
-  const y = (v: number) => H - pad - (v / max) * (H - pad * 2)
-  const x = (i: number) => pad + i * bw + bw / 2
-
-  // gleitender Durchschnitt über 3 Sitzungen als Trendlinie
-  const avg = data.map((_, i) => {
-    const w = data.slice(Math.max(0, i - 2), i + 1)
-    return w.reduce((a, s) => a + s.interruptions, 0) / w.length
-  })
-  const fmt = (s: MeditationSession) =>
-    new Date(s.startedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="chart">
-      <defs>
-        <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#7c5cff" />
-          <stop offset="1" stopColor="#22d3ee" stopOpacity="0.6" />
-        </linearGradient>
-      </defs>
-      <line x1={pad} x2={W - pad} y1={H - pad} y2={H - pad} className="axis" />
-      {data.map((s, i) => (
-        <g key={s.id}>
-          <rect
-            x={pad + i * bw + bw * 0.15}
-            width={bw * 0.7}
-            y={y(s.interruptions)}
-            height={H - pad - y(s.interruptions)}
-            rx={3}
-            fill="url(#bar)"
-          />
-          {data.length <= 12 && (
-            <text x={x(i)} y={y(s.interruptions) - 4} className="val">
-              {s.interruptions}
-            </text>
-          )}
-        </g>
-      ))}
-      <polyline
-        points={avg.map((v, i) => `${x(i)},${y(v)}`).join(' ')}
-        className="trendline"
-      />
-      <text x={pad} y={H - 4} className="lbl">
-        {fmt(data[0])}
-      </text>
-      <text x={W - pad} y={H - 4} className="lbl end">
-        {fmt(data[data.length - 1])}
-      </text>
-    </svg>
-  )
-}
-
-function Heatmap({ sessions }: { sessions: MeditationSession[] }) {
-  const minutes = new Map<string, number>()
-  for (const s of sessions) {
-    const k = dayKey(new Date(s.startedAt))
-    minutes.set(k, (minutes.get(k) ?? 0) + s.actualSec / 60)
-  }
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const mondayOffset = (today.getDay() + 6) % 7
-  const start = new Date(today)
-  start.setDate(today.getDate() - mondayOffset - 28)
-
-  const cells = Array.from({ length: 35 }, (_, i) => {
-    const d = new Date(start)
-    d.setDate(start.getDate() + i)
-    const m = minutes.get(dayKey(d)) ?? 0
-    return { key: dayKey(d), m, future: d > today, today: d.getTime() === today.getTime() }
-  })
-
-  return (
-    <>
-      <div className="heat head">
-        {['M', 'D', 'M', 'D', 'F', 'S', 'S'].map((l, i) => (
-          <small key={i} className="muted">
-            {l}
-          </small>
-        ))}
-      </div>
-      <div className="heat">
-        {cells.map((c) => (
-          <span
-            key={c.key}
-            title={`${c.key}: ${Math.round(c.m)} Min`}
-            className={`cell ${c.future ? 'future' : ''} ${c.today ? 'today' : ''} l${
-              c.m === 0 ? 0 : c.m < 10 ? 1 : c.m < 20 ? 2 : 3
-            }`}
-          />
-        ))}
-      </div>
     </>
   )
 }
