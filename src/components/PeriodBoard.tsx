@@ -11,6 +11,7 @@ import {
 } from '../goals'
 import type { AppData } from '../goals'
 import type { Goal, Period, Topic } from '../types'
+import { RowPhotos } from './Attach'
 import { ProgressBar, Ring, WeekDots } from './ui'
 
 interface Props {
@@ -19,7 +20,8 @@ interface Props {
   goals: Goal[]
   editable?: boolean
   onToggle: (id: string) => void
-  onAdd: (title: string, period: Period, offset: 0 | 1) => void
+  onBump: (id: string, delta: 1 | -1) => void
+  onAdd: (title: string, period: Period, offset: 0 | 1, target?: number) => void
   onOpenTopic?: (t: Topic) => void
   onDelete?: (id: string) => void
   onCarry?: (id: string) => void
@@ -31,6 +33,7 @@ export default function PeriodBoard({
   goals,
   editable,
   onToggle,
+  onBump,
   onAdd,
   onOpenTopic,
   onDelete,
@@ -38,6 +41,10 @@ export default function PeriodBoard({
 }: Props) {
   const [text, setText] = useState('')
   const [offset, setOffset] = useState<0 | 1>(0)
+  const [type, setType] = useState<'check' | 'count'>('check')
+  const [targetText, setTargetText] = useState('4')
+  const targetNum = parseInt(targetText, 10)
+  const countValid = type === 'check' || (targetNum >= 2 && targetNum <= 999)
 
   const cur = periodStartKey(period)
   const todos = data.todos.filter((t) => t.period === period)
@@ -60,38 +67,72 @@ export default function PeriodBoard({
         ? 'Alles erledigt'
         : `${total - doneCount} noch offen`
 
-  const row = (t: (typeof todos)[number], late: boolean) => (
-    <li key={t.id} className={`todo ${t.done ? 'done' : ''}`}>
-      <button
-        className="todo-check"
-        aria-label={t.done ? 'Als offen markieren' : 'Als erledigt markieren'}
-        onClick={() => {
-          navigator.vibrate?.(t.done ? 0 : 12)
-          onToggle(t.id)
-        }}
-      >
-        {t.done ? '✓' : ''}
-      </button>
-      <span className="todo-title">
-        {t.title}
-        {late && <em className="late">überfällig</em>}
-      </span>
-      {editable && late && onCarry && (
-        <button className="x" aria-label="In aktuellen Zeitraum übernehmen" onClick={() => onCarry(t.id)}>
-          ↻
-        </button>
-      )}
-      {editable && onDelete && (
-        <button
-          className="x"
-          aria-label="ToDo löschen"
-          onClick={() => confirm('ToDo löschen?') && onDelete(t.id)}
-        >
-          ✕
-        </button>
-      )}
-    </li>
-  )
+  const row = (t: (typeof todos)[number], late: boolean) => {
+    const isCount = (t.target ?? 0) > 1
+    const count = t.count ?? 0
+    return (
+      <li key={t.id} className={`todo ${t.done ? 'done' : ''}`}>
+        {isCount ? (
+          <button
+            className={`todo-check count ${count > 0 && !t.done ? 'partial' : ''}`}
+            aria-label={`Hochzählen (${count} von ${t.target})`}
+            disabled={t.done}
+            onClick={() => {
+              navigator.vibrate?.(12)
+              onBump(t.id, 1)
+            }}
+          >
+            {t.done ? '✓' : count > 0 ? count : '+'}
+          </button>
+        ) : (
+          <button
+            className="todo-check"
+            aria-label={t.done ? 'Als offen markieren' : 'Als erledigt markieren'}
+            onClick={() => {
+              navigator.vibrate?.(t.done ? 0 : 12)
+              onToggle(t.id)
+            }}
+          >
+            {t.done ? '✓' : ''}
+          </button>
+        )}
+        <span className="todo-title">
+          {t.title}
+          {isCount && (
+            <em className="when">
+              {count}/{t.target}
+            </em>
+          )}
+          {late && <em className="late">überfällig</em>}
+          {isCount && (
+            <span className="bar mini">
+              <i style={{ width: `${Math.min(100, (count / (t.target ?? 1)) * 100)}%` }} />
+            </span>
+          )}
+        </span>
+        {isCount && count > 0 && (
+          <button className="x" aria-label="Eins zurück" onClick={() => onBump(t.id, -1)}>
+            −
+          </button>
+        )}
+        {editable && <RowPhotos ownerId={t.id} />}
+        {editable && late && onCarry && (
+          <button className="x" aria-label="In aktuellen Zeitraum übernehmen" onClick={() => onCarry(t.id)}>
+            ↻
+          </button>
+        )}
+        {editable && onDelete && (
+          <button
+            className="x"
+            aria-label="ToDo löschen"
+            onClick={() => confirm('ToDo löschen?') && onDelete(t.id)}
+          >
+            ✕
+          </button>
+        )}
+      </li>
+    )
+  }
 
   return (
     <>
@@ -108,34 +149,74 @@ export default function PeriodBoard({
 
       <section className="card tight">
         <form
-          className="addrow"
+          className="addform"
           onSubmit={(e) => {
             e.preventDefault()
-            if (text.trim()) {
-              onAdd(text.trim(), period, offset)
+            if (text.trim() && countValid) {
+              onAdd(text.trim(), period, offset, type === 'count' ? targetNum : undefined)
               setText('')
             }
           }}
         >
-          <input
-            type="text"
-            value={text}
-            placeholder="Was willst du erreichen?"
-            onChange={(e) => setText(e.target.value)}
-          />
-          {editable && (
-            <select
-              aria-label="Zeitraum"
-              value={offset}
-              onChange={(e) => setOffset(e.target.value === '1' ? 1 : 0)}
+          <div className="addrow">
+            <input
+              type="text"
+              value={text}
+              placeholder="Was willst du erreichen?"
+              onChange={(e) => setText(e.target.value)}
+            />
+            <button
+              className="addbtn"
+              type="submit"
+              aria-label="Hinzufügen"
+              disabled={!text.trim() || !countValid}
             >
-              <option value="0">{PERIOD_NAMES[period].now}</option>
-              <option value="1">{PERIOD_NAMES[period].next}</option>
-            </select>
-          )}
-          <button className="addbtn" type="submit" aria-label="Hinzufügen" disabled={!text.trim()}>
-            +
-          </button>
+              +
+            </button>
+          </div>
+          <div className="addopts">
+            <div className="mini-seg" role="group" aria-label="Typ">
+              <button
+                type="button"
+                className={type === 'check' ? 'on' : ''}
+                onClick={() => setType('check')}
+              >
+                Abhaken
+              </button>
+              <button
+                type="button"
+                className={type === 'count' ? 'on' : ''}
+                onClick={() => setType('count')}
+              >
+                Zählen
+              </button>
+            </div>
+            {type === 'count' && (
+              <label className="target-in">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={2}
+                  max={999}
+                  value={targetText}
+                  aria-label="Zielanzahl"
+                  onChange={(e) => setTargetText(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                />
+                <span className="muted">×</span>
+              </label>
+            )}
+            {editable && (
+              <select
+                aria-label="Zeitraum"
+                value={offset}
+                onChange={(e) => setOffset(e.target.value === '1' ? 1 : 0)}
+              >
+                <option value="0">{PERIOD_NAMES[period].now}</option>
+                <option value="1">{PERIOD_NAMES[period].next}</option>
+              </select>
+            )}
+          </div>
         </form>
 
         {open.length + done.length === 0 && (
@@ -184,6 +265,7 @@ export default function PeriodBoard({
                 <span className="todo-dot" />
                 <span className="todo-title">
                   {t.title}
+                  {(t.target ?? 0) > 1 && <em className="when">{t.target}×</em>}
                   <em className="when">
                     {new Date(`${t.start}T12:00:00`).toLocaleDateString('de-DE', {
                       day: '2-digit',

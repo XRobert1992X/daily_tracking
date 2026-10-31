@@ -1,6 +1,7 @@
 import { addDays, dayKey, weekStart } from './stats'
 import type {
   Book,
+  DietEntry,
   FocusSession,
   Goal,
   Habit,
@@ -12,6 +13,7 @@ import type {
   SocialEntry,
   TodoItem,
   Topic,
+  TradeEntry,
 } from './types'
 
 export interface AppData {
@@ -24,6 +26,10 @@ export interface AppData {
   focus: FocusSession[]
   social: SocialEntry[]
   todos: TodoItem[]
+  diet: DietEntry[]
+  trades: TradeEntry[]
+  // Täglicher Grundverbrauch in kcal
+  dietTdee: number
 }
 
 export interface MetricDef {
@@ -58,6 +64,14 @@ export const METRICS: Record<Topic, MetricDef[]> = {
     { id: 'approach', label: 'Angesprochen', unit: '×', agg: 'sum' },
     { id: 'contact', label: 'Kontakt ausgetauscht', unit: '×', agg: 'sum' },
     { id: 'date', label: 'Dates', unit: '×', agg: 'sum' },
+  ],
+  diet: [
+    { id: 'burned', label: 'Verbrannte kcal (Aktivität)', unit: 'kcal', agg: 'sum' },
+    { id: 'deficit', label: 'Kalorien-Defizit', unit: 'kcal', agg: 'sum' },
+  ],
+  trading: [
+    { id: 'pnl', label: 'Gewinn/Verlust', unit: '€', agg: 'sum' },
+    { id: 'trades', label: 'Trades', unit: '×', agg: 'sum' },
   ],
 }
 
@@ -141,6 +155,27 @@ function buildDaily(goal: Goal, d: AppData): Daily {
       break
     case 'social':
       for (const e of d.social) if (e.kind === goal.metric) add(out, day(e.at), 1)
+      break
+    case 'diet': {
+      const byDay = new Map<string, { eaten: number; burned: number }>()
+      for (const e of d.diet) {
+        const v = byDay.get(day(e.at)) ?? { eaten: 0, burned: 0 }
+        if (e.kind === 'food') v.eaten += e.kcal
+        else v.burned += e.kcal
+        byDay.set(day(e.at), v)
+      }
+      for (const [k, v] of byDay) {
+        if (goal.metric === 'burned') {
+          if (v.burned > 0) add(out, k, v.burned)
+        } else if (v.eaten > 0) {
+          // Defizit nur für Tage, an denen Essen eingetragen wurde
+          add(out, k, d.dietTdee + v.burned - v.eaten)
+        }
+      }
+      break
+    }
+    case 'trading':
+      for (const t of d.trades) add(out, day(t.at), goal.metric === 'pnl' ? t.amount : 1)
       break
   }
   return out
@@ -261,7 +296,7 @@ export function evaluateGoal(goal: Goal, data: AppData): GoalEval {
   return {
     current,
     target: goal.target,
-    pct: goal.target > 0 ? Math.min(1, current / goal.target) : 0,
+    pct: goal.target > 0 ? Math.max(0, Math.min(1, current / goal.target)) : 0,
     status,
     history,
     streak,

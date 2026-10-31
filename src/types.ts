@@ -95,7 +95,28 @@ export interface FocusSession {
   completed: boolean
 }
 
-export type Topic = 'meditation' | 'reading' | 'habits' | 'mood' | 'focus' | 'social'
+export type Topic = 'meditation' | 'reading' | 'habits' | 'mood' | 'focus' | 'social' | 'diet' | 'trading'
+
+export interface DietEntry {
+  id: string
+  at: string
+  kind: 'food' | 'activity'
+  // Mahlzeit bei Essen, Aktivität (Joggen, Kraftsport, …) bei Aktivität
+  label: string
+  kcal: number
+  note?: string
+}
+
+export const DIET_ACTIVITIES = ['Joggen', 'Kraftsport', 'Radfahren', 'Schwimmen', 'Gehen', 'HIIT', 'Sonstiges']
+
+export interface TradeEntry {
+  id: string
+  at: string
+  // Gewinn positiv, Verlust negativ (in €)
+  amount: number
+  label?: string
+  note?: string
+}
 export type SocialKind = 'indirect' | 'approach' | 'contact' | 'date'
 
 export interface SocialEntry {
@@ -136,5 +157,8 @@ export interface TodoItem {
   start: string
   done: boolean
   doneAt?: string
+  // Zähl-ToDo: erst wenn count das target erreicht, gilt es als erledigt. Ohne target: normales Abhaken
+  target?: number
+  count?: number
   createdAt: string
 }

@@ -11,7 +11,8 @@ interface Props {
   data: AppData
   goals: Goal[]
   onToggle: (id: string) => void
-  onAdd: (title: string, period: Period, offset: 0 | 1) => void
+  onBump: (id: string, delta: 1 | -1) => void
+  onAdd: (title: string, period: Period, offset: 0 | 1, target?: number) => void
   onDelete: (id: string) => void
   onCarry: (id: string) => void
   onOpenTopic: (t: Topic) => void
@@ -49,6 +50,7 @@ export default function Todo(props: Props) {
             goals={goals}
             editable
             onToggle={props.onToggle}
+            onBump={props.onBump}
             onAdd={props.onAdd}
             onDelete={props.onDelete}
             onCarry={props.onCarry}
@@ -130,6 +132,11 @@ function Archive({ data, onToggle }: { data: AppData; onToggle: (id: string) => 
                   </button>
                   <span className="todo-title">
                     {t.title}
+                    {(t.target ?? 0) > 1 && (
+                      <em className="when">
+                        {t.count ?? 0}/{t.target}
+                      </em>
+                    )}
                     <em className="when">{PERIOD_NAMES[t.period].short}</em>
                   </span>
                 </li>

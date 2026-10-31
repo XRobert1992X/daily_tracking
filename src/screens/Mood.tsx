@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Attach, PhotoBadge } from '../components/Attach'
 import { LineChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import { Header, Seg, Stat } from '../components/ui'
@@ -88,6 +89,7 @@ function CheckIn({
   const [mood, setMood] = useState(0)
   const [energy, setEnergy] = useState(0)
   const [note, setNote] = useState('')
+  const [draft, setDraft] = useState(() => crypto.randomUUID())
   const today = dayKey(new Date())
   const todays = data.moods.filter((e) => dayKey(new Date(e.at)) === today)
 
@@ -116,6 +118,7 @@ function CheckIn({
             placeholder="Was beschäftigt dich?"
           />
         </label>
+        <Attach ownerId={draft} />
       </section>
 
       <button
@@ -123,7 +126,7 @@ function CheckIn({
         disabled={!mood || !energy}
         onClick={() => {
           onSave({
-            id: crypto.randomUUID(),
+            id: draft,
             at: new Date().toISOString(),
             mood,
             energy,
@@ -132,6 +135,7 @@ function CheckIn({
           setMood(0)
           setEnergy(0)
           setNote('')
+          setDraft(crypto.randomUUID())
         }}
       >
         Speichern
@@ -152,6 +156,7 @@ function CheckIn({
                     {e.note && ` · ${e.note}`}
                   </small>
                 </div>
+                <PhotoBadge ownerId={e.id} />
                 <button
                   className="x"
                   aria-label="Löschen"
@@ -225,7 +230,7 @@ function History({ data }: { data: AppData }) {
           <LineChart
             labels={days.map(shortDate)}
             series={[
-              { name: 'Stimmung', color: '#a78bfa', values: days.map((k) => daily.get(k)?.mood ?? null) },
+              { name: 'Stimmung', color: '#e4e4e7', values: days.map((k) => daily.get(k)?.mood ?? null) },
               { name: 'Energie', color: '#22d3ee', values: days.map((k) => daily.get(k)?.energy ?? null) },
             ]}
           />

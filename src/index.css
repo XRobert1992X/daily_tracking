@@ -4,8 +4,9 @@
   --border: rgba(255, 255, 255, 0.09);
   --text: #f4f4f5;
   --muted: #8e8e99;
-  --accent: #7c5cff;
-  --accent2: #22d3ee;
+  --accent: #38bdf8;
+  --accent-rgb: 56, 189, 248;
+  --accent2: #2dd4bf;
   --ok: #34d399;
   --bad: #fb923c;
   color-scheme: dark;
@@ -27,7 +28,7 @@ body {
 
 body {
   background:
-    radial-gradient(500px 260px at 100% -4%, rgba(124, 92, 255, 0.13), transparent 70%),
+    radial-gradient(500px 260px at 100% -4%, rgba(var(--accent-rgb), 0.08), transparent 70%),
     var(--bg);
   background-attachment: fixed;
 }
@@ -59,7 +60,7 @@ h1 {
   margin: 2px 0 0;
   font-size: 34px;
   letter-spacing: -0.03em;
-  background: linear-gradient(90deg, #fff, #b4b4c0);
+  background: linear-gradient(90deg, #fff, #a1a1aa);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -211,7 +212,7 @@ button.topic:active {
 }
 
 .seg button.on {
-  background: rgba(124, 92, 255, 0.35);
+  background: rgba(var(--accent-rgb), 0.22);
   color: #fff;
 }
 
@@ -260,9 +261,9 @@ select option {
   border-radius: 16px;
   font-size: 17px;
   font-weight: 700;
-  color: #fff;
-  background: linear-gradient(90deg, var(--accent), #5b8cff);
-  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.4);
+  color: #04121c;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.28);
   transition: transform 0.12s ease;
 }
 
@@ -367,7 +368,7 @@ select option {
 }
 
 .wander:active {
-  background: rgba(124, 92, 255, 0.3);
+  background: rgba(var(--accent-rgb), 0.2);
 }
 
 .wander-count {
@@ -496,11 +497,11 @@ select option {
 }
 
 .cell.l1 {
-  background: rgba(124, 92, 255, 0.4);
+  background: rgba(var(--accent-rgb), 0.3);
 }
 
 .cell.l2 {
-  background: rgba(124, 92, 255, 0.7);
+  background: rgba(var(--accent-rgb), 0.6);
 }
 
 .cell.l3 {
@@ -579,7 +580,7 @@ input::placeholder {
 }
 
 .ghost.primary {
-  background: rgba(124, 92, 255, 0.35);
+  background: rgba(var(--accent-rgb), 0.22);
   border-color: transparent;
 }
 
@@ -726,7 +727,7 @@ input::placeholder {
 .hbar i {
   display: block;
   width: 100%;
-  background: rgba(124, 92, 255, 0.55);
+  background: rgba(var(--accent-rgb), 0.5);
 }
 
 .hcol.hit .hbar i {
@@ -1100,7 +1101,7 @@ textarea {
 }
 
 .rate button.on {
-  background: rgba(124, 92, 255, 0.45);
+  background: rgba(var(--accent-rgb), 0.3);
   border-color: transparent;
 }
 
@@ -1439,7 +1440,361 @@ textarea {
   padding: 0 4px;
 }
 
+/* ToDo: Typ-Auswahl und Zähler */
+.addform {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.addform .addrow {
+  margin-bottom: 0;
+}
+
+.addopts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.mini-seg button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mini-seg button.on {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: #fff;
+}
+
+.target-in {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.target-in input {
+  width: 62px;
+  padding: 7px 8px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.addopts select {
+  width: auto;
+  max-width: 140px;
+  padding: 7px 26px 7px 10px;
+  font-size: 13px;
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+}
+
+.todo-check.count {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  border-style: dashed;
+}
+
+.todo-check.count.partial {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.todo.done .todo-check.count {
+  color: #04120c;
+  border-style: solid;
+}
+
+.bar.mini {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+}
+
+/* Fotos */
+.attach {
+  margin: 6px 0 2px;
+}
+
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.thumb,
+.addphoto {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  padding: 0;
+}
+
+.thumb img,
+.thumb span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.addphoto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--muted);
+  border-style: dashed;
+  font-size: 11px;
+}
+
+.addphoto:disabled {
+  opacity: 0.5;
+}
+
+.pbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
+  background: rgba(0, 0, 0, 0.94);
+}
+
+.lightbox-img {
+  max-width: 100%;
+  max-height: calc(100dvh - 140px);
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.lightbox-bar {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+}
+
+/* Diät und Trading */
+.bignum {
+  margin: 4px 0 10px;
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.bignum small {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.triple {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.triple div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.triple b {
+  font-size: 18px;
+}
+
+.triple small {
+  font-size: 11px;
+}
+
+.burn-goal {
+  margin-top: 14px;
+}
+
+.burn-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.mbar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mbar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width 0.3s ease;
+}
+
+.mbar i.hit {
+  background: var(--ok);
+}
+
+.mbar .mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.tdee {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.tdee input {
+  width: 110px;
+  padding: 8px 10px;
+  font-size: 16px;
+  text-align: right;
+}
+
+.kdot {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 17px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.kdot.food {
+  color: var(--bad);
+}
+
+.kdot.activity {
+  color: var(--ok);
+}
+
+.erow.static {
+  cursor: default;
+}
+
+.daynav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.daynav button {
+  width: 40px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 22px;
+}
+
+.daynav button:disabled {
+  opacity: 0.25;
+}
+
+.duration.spaced,
+.cta.spaced,
+.row.spaced {
+  margin-top: 12px;
+}
+
+.chart .mid {
+  text-anchor: middle;
+}
+
+.chart .target-line {
+  stroke: #fff;
+  stroke-width: 1.200;
+  stroke-dasharray: 4 3;
+  opacity: 0.75;
+}
+
+.chart .target-lbl {
+  fill: #e4e4e7;
+}
+
+/* Foto-Knopf und aufgeklappte Fotos in Listenzeilen */
+.list li,
+.todo {
+  flex-wrap: wrap;
+}
+
+.x.cam {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.x.cam small {
+  font-size: 11px;
+}
+
+.li-attach {
+  flex-basis: 100%;
+  padding: 2px 0 6px;
+}
+
 .chipbtn.on {
-  background: rgba(124, 92, 255, 0.35);
+  background: rgba(var(--accent-rgb), 0.22);
   border-color: transparent;
 }

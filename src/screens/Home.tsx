@@ -27,7 +27,8 @@ interface Props {
   goals: Goal[]
   onOpen: (t: Route) => void
   onToggleTodo: (id: string) => void
-  onAddTodo: (title: string, period: Period, offset: 0 | 1) => void
+  onBumpTodo: (id: string, delta: 1 | -1) => void
+  onAddTodo: (title: string, period: Period, offset: 0 | 1, target?: number) => void
   onExport: () => void
   onImport: (file: File) => Promise<string>
 }
@@ -37,6 +38,7 @@ export default function Home({
   goals,
   onOpen,
   onToggleTodo,
+  onBumpTodo,
   onAddTodo,
   onExport,
   onImport,
@@ -63,6 +65,26 @@ export default function Home({
   const approachWeek = socialWeek.filter((e) => e.kind === 'approach').length
   const datesWeek = socialWeek.filter((e) => e.kind === 'date').length
 
+  const dietToday = data.diet.filter((e) => dayOf(e.at) === today)
+  const eatenToday = sum(dietToday.filter((e) => e.kind === 'food').map((e) => e.kcal))
+  const burnedToday = sum(dietToday.filter((e) => e.kind === 'activity').map((e) => e.kcal))
+  const balanceToday = data.dietTdee + burnedToday - eatenToday
+  const kcal = (n: number) => Math.round(Math.abs(n)).toLocaleString('de-DE')
+  const dietInfo = !data.diet.length
+    ? 'Noch kein Eintrag'
+    : eatenToday > 0
+      ? `Heute ${balanceToday >= 0 ? 'Defizit' : 'Überschuss'} ${kcal(balanceToday)} kcal`
+      : `Heute ${kcal(burnedToday)} kcal verbrannt`
+  const eur = (n: number) =>
+    `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}`
+  const tradeToday = sum(data.trades.filter((e) => dayOf(e.at) === today).map((e) => e.amount))
+  const tradeMonth = sum(
+    data.trades.filter((e) => dayOf(e.at).startsWith(today.slice(0, 7))).map((e) => e.amount),
+  )
+  const tradeInfo = data.trades.length
+    ? `Heute ${eur(tradeToday)} · Monat ${eur(tradeMonth)}`
+    : 'Noch kein Trade'
+
   const topics: { id: Exclude<Route, 'home'>; name: string; info: string }[] = [
     {
       id: 'todo',
@@ -70,6 +92,16 @@ export default function Home({
       info: data.todos.length
         ? `${todosOpenToday} offen heute · ${data.todos.filter((t) => !t.done).length} insgesamt`
         : 'Tag, Woche, Monat, Jahr',
+    },
+    {
+      id: 'diet',
+      name: 'Diät',
+      info: dietInfo,
+    },
+    {
+      id: 'trading',
+      name: 'Trading',
+      info: tradeInfo,
     },
     {
       id: 'meditation',
@@ -141,6 +173,7 @@ export default function Home({
         data={data}
         goals={goals}
         onToggle={onToggleTodo}
+        onBump={onBumpTodo}
         onAdd={onAddTodo}
         onOpenTopic={onOpen}
       />

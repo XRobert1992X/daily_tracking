@@ -61,7 +61,7 @@ export function GoalCard({
           {ev.history.map((h, i) => (
             <div key={i} className={`hcol ${h.hit ? 'hit' : ''} ${h.current ? 'cur' : ''}`}>
               <div className="hbar">
-                <i style={{ height: `${Math.min(100, (h.value / ev.target) * 100)}%` }} />
+                <i style={{ height: `${Math.max(0, Math.min(100, (h.value / ev.target) * 100))}%` }} />
               </div>
               <small>{h.label}</small>
             </div>

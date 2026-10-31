@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cancelScheduled } from '../audio'
+import { Attach } from '../components/Attach'
 import { Stepper } from '../components/ui'
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
   subtitle: string
   question: string
   initial: number
+  ownerId: string
   onSave: (count: number) => void
   onDiscard: () => void
 }
@@ -16,6 +18,7 @@ export default function DoneScreen({
   subtitle,
   question,
   initial,
+  ownerId,
   onSave,
   onDiscard,
 }: Props) {
@@ -30,6 +33,7 @@ export default function DoneScreen({
         <p className="muted">{subtitle}</p>
         <p className="muted question">{question}</p>
         <Stepper value={count} onChange={setCount} />
+        <Attach ownerId={ownerId} />
       </section>
 
       <button

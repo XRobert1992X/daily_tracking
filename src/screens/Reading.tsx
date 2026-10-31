@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Attach, RowPhotos } from '../components/Attach'
 import { BarChart, Heatmap } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import { Header, ProgressBar, Seg, Stat } from '../components/ui'
@@ -214,6 +215,7 @@ function BookDetail({
   const [minutes, setMinutes] = useState('')
   const [pages, setPages] = useState('')
   const [day, setDay] = useState(todayKey())
+  const [draft, setDraft] = useState(() => crypto.randomUUID())
   const s = bookStats(book, logs)
   const m = parseInt(minutes, 10) || 0
   const p = parseInt(pages, 10) || 0
@@ -243,6 +245,7 @@ function BookDetail({
           {s.minutes} Min gelesen
           {book.finishedAt && ` · beendet am ${new Date(book.finishedAt).toLocaleDateString('de-DE')}`}
         </p>
+        <Attach ownerId={book.id} />
       </section>
 
       <section className="card">
@@ -273,13 +276,15 @@ function BookDetail({
           <span className="muted">Datum</span>
           <input type="date" value={day} max={todayKey()} onChange={(e) => setDay(e.target.value)} />
         </label>
+        <Attach ownerId={draft} />
         <button
-          className="cta"
+          className="cta spaced"
           disabled={(m <= 0 && p <= 0) || !day}
           onClick={() => {
-            onUpsertLog({ id: crypto.randomUUID(), bookId: book.id, day, minutes: m, pages: p })
+            onUpsertLog({ id: draft, bookId: book.id, day, minutes: m, pages: p })
             setMinutes('')
             setPages('')
+            setDraft(crypto.randomUUID())
           }}
         >
           Eintragen
@@ -298,6 +303,7 @@ function BookDetail({
                     {l.minutes} Min · {l.pages} Seiten
                   </small>
                 </div>
+                <RowPhotos ownerId={l.id} />
                 <button
                   className="x"
                   aria-label="Löschen"

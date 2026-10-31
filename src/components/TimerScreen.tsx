@@ -134,8 +134,8 @@ export default function TimerScreen({
         <svg viewBox="0 0 280 280" className="ring">
           <defs>
             <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#7c5cff" />
-              <stop offset="1" stopColor="#22d3ee" />
+              <stop offset="0" stopColor="#38bdf8" />
+              <stop offset="1" stopColor="#2dd4bf" />
             </linearGradient>
           </defs>
           <circle cx="140" cy="140" r={R} className="ring-bg" />

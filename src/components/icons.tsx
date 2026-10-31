@@ -2,6 +2,15 @@ import type { ReactNode } from 'react'
 import type { SocialKind, Topic } from '../types'
 
 const GLYPHS: Record<Topic | 'todo', ReactNode> = {
+  diet: (
+    <path d="M24 8c2.500 7 11 10 11 20a11 11 0 0 1-22 0c0-5 2.500-8 5-10 0 4 2 5.500 4 5.500-1.500-6.500-1-11.500 2-15.500z" />
+  ),
+  trading: (
+    <>
+      <path d="M8 35l10-11 7 6 14-16" />
+      <path d="M30 14h9v9" />
+    </>
+  ),
   todo: (
     <>
       <path d="M9 13l3 3 5-6" />
@@ -72,6 +81,25 @@ export function TopicIcon({ topic, size = 52 }: { topic: Topic | 'todo'; size?: 
       >
         {GLYPHS[topic]}
       </g>
+    </svg>
+  )
+}
+
+export function CameraIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.800"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 8h3l1.500-2.500h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13" r="3.500" />
     </svg>
   )
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { addDays, dayKey, todayKey } from '../stats'
 
 export function Header({ title, onBack }: { title: string; onBack: () => void }) {
   return (
@@ -55,7 +56,7 @@ export function Stepper({
 }
 
 export function ProgressBar({ value, max }: { value: number; max: number }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0
   return (
     <div className="bar">
       <i style={{ width: `${pct}%` }} />
@@ -129,9 +130,50 @@ export function parseMinutes(text: string, max = 240) {
   return n >= 1 && n <= max ? n : 0
 }
 
+// Fortschrittsbalken mit Zielmarkierung
+export function MarkerBar({ value, target }: { value: number; target: number }) {
+  const max = Math.max(value, target) * 1.15 || 1
+  return (
+    <div className="mbar">
+      <i
+        className={value >= target ? 'hit' : ''}
+        style={{ width: `${Math.max(0, Math.min(100, (value / max) * 100))}%` }}
+      />
+      <span className="mark" style={{ left: `${(target / max) * 100}%` }} />
+    </div>
+  )
+}
+
 export function useToggle(initial = false) {
   const [on, setOn] = useState(initial)
   return [on, () => setOn((v) => !v), setOn] as const
+}
+
+// Tageswechsler: ‹ Heute ›
+export function DayNav({ day, onChange }: { day: string; onChange: (d: string) => void }) {
+  const today = todayKey()
+  const shift = (n: number) => onChange(dayKey(addDays(new Date(`${day}T12:00:00`), n)))
+  const label =
+    day === today
+      ? 'Heute'
+      : day === dayKey(addDays(new Date(), -1))
+        ? 'Gestern'
+        : new Date(`${day}T12:00:00`).toLocaleDateString('de-DE', {
+            weekday: 'short',
+            day: '2-digit',
+            month: '2-digit',
+          })
+  return (
+    <div className="daynav">
+      <button onClick={() => shift(-1)} aria-label="Vorheriger Tag">
+        ‹
+      </button>
+      <b>{label}</b>
+      <button onClick={() => shift(1)} disabled={day >= today} aria-label="Nächster Tag">
+        ›
+      </button>
+    </div>
+  )
 }
 
 // Fortschrittsring mit Zahl in der Mitte
@@ -154,8 +196,8 @@ export function Ring({
       <svg viewBox="0 0 92 92" width={size} height={size}>
         <defs>
           <linearGradient id="ring2g" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#7c5cff" />
-            <stop offset="1" stopColor="#22d3ee" />
+            <stop offset="0" stopColor="#38bdf8" />
+            <stop offset="1" stopColor="#2dd4bf" />
           </linearGradient>
         </defs>
         <circle cx="46" cy="46" r={r} className="ring2-bg" />

@@ -13,6 +13,8 @@ export const KEYS = {
   goals: 'goals',
   social: 'social',
   todos: 'todos',
+  diet: 'diet',
+  trades: 'trades',
 } as const
 
 export type StoreName = keyof typeof KEYS
@@ -20,6 +22,7 @@ export type Row = { id: string }
 
 export interface Collection<T extends Row> {
   items: T[]
+  loaded: boolean
   upsert: (item: T) => void
   remove: (id: string) => void
   removeWhere: (fn: (item: T) => boolean) => void
@@ -32,6 +35,7 @@ export function useCollection<T extends Row>(
   sort?: (a: T, b: T) => number,
 ): Collection<T> {
   const [items, setItems] = useState<T[]>([])
+  const [loaded, setLoaded] = useState(false)
   const ref = useRef<T[]>([])
   const sortRef = useRef(sort)
 
@@ -50,6 +54,7 @@ export function useCollection<T extends Row>(
         setItems(ref.current)
       })
       .catch(() => {})
+      .finally(() => setLoaded(true))
   }, [name])
 
   const upsert = useCallback(
@@ -81,7 +86,7 @@ export function useCollection<T extends Row>(
     [commit],
   )
 
-  return { items, upsert, remove, removeWhere, merge }
+  return { items, loaded, upsert, remove, removeWhere, merge }
 }
 
 // Bittet Safari, die Daten nicht automatisch zu löschen

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { unlockAudio } from '../audio'
+import { RowPhotos } from '../components/Attach'
 import { BarChart, Heatmap } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import TimerScreen from '../components/TimerScreen'
@@ -30,7 +31,7 @@ interface Props {
 type Phase =
   | { name: 'menu' }
   | { name: 'run'; active: ActiveSession }
-  | { name: 'done'; result: FinishedSession }
+  | { name: 'done'; result: FinishedSession; id: string }
 
 export default function Meditation({
   data,
@@ -63,6 +64,7 @@ export default function Meditation({
           clearActive()
           setPhase({
             name: 'done',
+            id: crypto.randomUUID(),
             result: {
               startedAt: a.startedAt,
               plannedMin: a.plannedMin,
@@ -89,9 +91,10 @@ export default function Meditation({
         subtitle={`${typeLabel(r.type)} · ${fmtClock(r.actualSec)} Min`}
         question="Wie oft bist du abgeschweift?"
         initial={r.interruptions}
+        ownerId={phase.id}
         onSave={(interruptions) => {
           onSave({
-            id: crypto.randomUUID(),
+            id: phase.id,
             startedAt: new Date(r.startedAt).toISOString(),
             plannedMin: r.plannedMin,
             actualSec: r.actualSec,
@@ -256,6 +259,7 @@ function History({
                     {r !== null && ` · ${r.toFixed(1)}/10 Min`}
                   </small>
                 </div>
+                <RowPhotos ownerId={s.id} />
                 <span className="chip">{s.interruptions}×</span>
                 <button
                   className="x"

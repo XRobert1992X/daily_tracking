@@ -25,8 +25,8 @@ export function BarChart({ data, trend }: { data: Bar[]; trend?: boolean }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="chart">
       <defs>
         <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#7c5cff" />
-          <stop offset="1" stopColor="#22d3ee" stopOpacity="0.6" />
+          <stop offset="0" stopColor="#38bdf8" />
+          <stop offset="1" stopColor="#2dd4bf" stopOpacity="0.7" />
         </linearGradient>
       </defs>
       <line x1={pad} x2={W - pad} y1={H - pad} y2={H - pad} className="axis" />
@@ -176,5 +176,118 @@ export function Heatmap({
         ))}
       </div>
     </>
+  )
+}
+
+const fmtShort = (v: number) =>
+  Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1).replace('.', ',')}k` : String(Math.round(v))
+
+// Balken pro Tag, die bis zur Zielmarkierung (gestrichelte Linie) wachsen; Treffer werden grün
+export function TargetBars({
+  data,
+  target,
+  signed,
+}: {
+  data: { key: string; value: number; label: string }[]
+  target?: number
+  signed?: boolean
+}) {
+  const W = 320
+  const H = 180
+  const top = 20
+  const bottom = H - 24
+  const vals = data.map((d) => d.value)
+  const maxV = Math.max(target ?? 0, ...vals, 1)
+  const minV = signed ? Math.min(0, ...vals) : 0
+  const range = maxV - minV || 1
+  const y = (v: number) => top + ((maxV - v) / range) * (bottom - top)
+  const zeroY = y(0)
+  const bw = (W - 16) / Math.max(1, data.length)
+  const labelStep = Math.ceil(data.length / 8)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="chart">
+      <defs>
+        <linearGradient id="tb" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#38bdf8" />
+          <stop offset="1" stopColor="#2dd4bf" stopOpacity="0.6" />
+        </linearGradient>
+      </defs>
+      <line x1={8} x2={W - 8} y1={zeroY} y2={zeroY} className="axis" />
+      {data.map((d, i) => {
+        const x = 8 + i * bw
+        const hit = target !== undefined && d.value >= target
+        const fill = d.value < 0 ? '#fb923c' : hit || signed ? '#34d399' : 'url(#tb)'
+        const yv = y(d.value)
+        return (
+          <g key={d.key}>
+            {d.value !== 0 && (
+              <rect
+                x={x + bw * 0.15}
+                width={bw * 0.7}
+                y={Math.min(yv, zeroY)}
+                height={Math.abs(zeroY - yv)}
+                rx={3}
+                fill={fill}
+              />
+            )}
+            {data.length <= 8 && d.value !== 0 && (
+              <text
+                x={x + bw / 2}
+                y={d.value < 0 ? yv + 11 : yv - 4}
+                className="val"
+              >
+                {fmtShort(d.value)}
+              </text>
+            )}
+            {i % labelStep === 0 && (
+              <text x={x + bw / 2} y={H - 8} className="lbl mid">
+                {d.label}
+              </text>
+            )}
+          </g>
+        )
+      })}
+      {target !== undefined && (
+        <g>
+          <line x1={8} x2={W - 8} y1={y(target)} y2={y(target)} className="target-line" />
+          <text x={W - 8} y={y(target) - 4} className="lbl end target-lbl">
+            Ziel {fmtShort(target)}
+          </text>
+        </g>
+      )}
+    </svg>
+  )
+}
+
+// Kumulierte Kurve (z. B. Gewinn/Verlust über die Zeit)
+export function CumLine({ values, labels }: { values: number[]; labels: [string, string] }) {
+  const W = 320
+  const H = 150
+  const pad = 16
+  const lo = Math.min(0, ...values)
+  const hi = Math.max(0, ...values, 1)
+  const range = hi - lo || 1
+  const x = (i: number) => pad + (i * (W - pad * 2)) / Math.max(1, values.length - 1)
+  const y = (v: number) => pad + ((hi - v) / range) * (H - pad * 2 - 6)
+  const last = values[values.length - 1] ?? 0
+  const color = last >= 0 ? '#34d399' : '#fb923c'
+  const pts = values.map((v, i) => `${x(i)},${y(v)}`).join(' ')
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="chart">
+      <line x1={pad} x2={W - pad} y1={y(0)} y2={y(0)} className="axis" />
+      {values.length > 1 && (
+        <polygon points={`${x(0)},${y(0)} ${pts} ${x(values.length - 1)},${y(0)}`} fill={color} opacity="0.12" />
+      )}
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={2.200} strokeLinejoin="round" />
+      {values.length > 0 && <circle cx={x(values.length - 1)} cy={y(last)} r={3.500} fill={color} />}
+      <text x={pad} y={H - 4} className="lbl">
+        {labels[0]}
+      </text>
+      <text x={W - pad} y={H - 4} className="lbl end">
+        {labels[1]}
+      </text>
+    </svg>
   )
 }

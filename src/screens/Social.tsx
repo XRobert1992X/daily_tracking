@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Attach, PhotoBadge } from '../components/Attach'
 import { BarChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import { KIND_COLORS, KindIcon } from '../components/icons'
@@ -107,6 +108,7 @@ function Editor({
         placeholder="Kommentar: Was ist passiert, was hast du gelernt?"
         onChange={(e) => setNote(e.target.value)}
       />
+      <Attach ownerId={entry.id} />
       <button
         className="ghost primary wide"
         onClick={() => {
@@ -148,6 +150,7 @@ function EntryRows({
                 {e.note && <small className="clamp">{e.note}</small>}
               </span>
               <span className="emeta">
+                <PhotoBadge ownerId={e.id} />
                 {e.rating ? RATINGS[e.rating - 1] : ''}
                 <small>{timeOf(e)}</small>
               </span>

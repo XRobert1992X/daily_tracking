@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cancelScheduled, unlockAudio } from '../audio'
+import { Attach, RowPhotos } from '../components/Attach'
 import { BarChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import TimerScreen from '../components/TimerScreen'
@@ -272,6 +273,7 @@ function FocusDone({
         </p>
         <p className="muted question">Wie oft wurdest du abgelenkt?</p>
         <Stepper value={session.distractions} onChange={onChange} />
+        <Attach ownerId={session.id} />
       </section>
       <button className="cta" onClick={onBreak}>
         ☕ {breakLabel}
@@ -423,6 +425,7 @@ function History({
                     {Math.round(s.actualSec / 60)}/{s.plannedMin} Min
                   </small>
                 </div>
+                <RowPhotos ownerId={s.id} />
                 <span className="chip">{s.distractions}×</span>
                 <button
                   className="x"
