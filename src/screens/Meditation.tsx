@@ -17,7 +17,6 @@ export interface Preset {
 
 interface Props {
   sessions: MeditationSession[]
-  preset?: Preset
   onBack: () => void
   onStart: (p: Preset) => void
   onDelete: (id: string) => void
@@ -26,7 +25,6 @@ interface Props {
 
 export default function Meditation({
   sessions,
-  preset,
   onBack,
   onStart,
   onDelete,
@@ -53,7 +51,7 @@ export default function Meditation({
       </div>
 
       {tab === 'start' ? (
-        <Setup preset={preset} onStart={onStart} />
+        <Setup onStart={onStart} />
       ) : (
         <History
           sessions={sessions}
@@ -65,21 +63,15 @@ export default function Meditation({
   )
 }
 
-function Setup({ preset, onStart }: { preset?: Preset; onStart: (p: Preset) => void }) {
-  const initialMin = preset?.plannedMin ?? DEFAULT_MINUTES
-  const isPreset = MINUTE_OPTIONS.includes(initialMin)
-  const [type, setType] = useState(preset?.type ?? DEFAULT_TYPE)
-  const [sel, setSel] = useState(isPreset ? String(initialMin) : 'custom')
-  const [custom, setCustom] = useState(String(initialMin))
-  const [copied, setCopied] = useState(false)
+function Setup({ onStart }: { onStart: (p: Preset) => void }) {
+  const [type, setType] = useState(DEFAULT_TYPE)
+  const [text, setText] = useState(String(DEFAULT_MINUTES))
 
-  const minutes =
-    sel === 'custom'
-      ? Math.min(240, Math.max(1, parseInt(custom, 10) || 0))
-      : Number(sel)
-  const valid = sel !== 'custom' || (parseInt(custom, 10) || 0) >= 1
-
-  const link = `${location.origin}${location.pathname}?start=meditation&type=${type}&min=${minutes}&auto=1`
+  const parsed = parseInt(text, 10)
+  const valid = parsed >= 1 && parsed <= 240
+  const minutes = valid ? parsed : 0
+  // Dropdown zeigt den Standardwert nur, wenn die Eingabe genau dazu passt
+  const selected = MINUTE_OPTIONS.includes(parsed) && String(parsed) === text ? text : ''
 
   return (
     <>
@@ -95,31 +87,37 @@ function Setup({ preset, onStart }: { preset?: Preset; onStart: (p: Preset) => v
           </select>
         </label>
 
-        <label className="field">
-          <span className="muted">Dauer</span>
-          <select value={sel} onChange={(e) => setSel(e.target.value)}>
-            {MINUTE_OPTIONS.map((m) => (
-              <option key={m} value={m}>
-                {m} Minuten
-              </option>
-            ))}
-            <option value="custom">Eigene Eingabe…</option>
-          </select>
-        </label>
-
-        {sel === 'custom' && (
-          <label className="field">
-            <span className="muted">Minuten (1–240)</span>
+        <div className="field">
+          <span className="muted">Dauer in Minuten</span>
+          <div className="duration">
             <input
               type="number"
               inputMode="numeric"
               min={1}
               max={240}
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
+              placeholder="Min"
+              aria-label="Minuten eingeben"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={(e) => e.target.select()}
             />
-          </label>
-        )}
+            <select
+              aria-label="Standarddauer wählen"
+              value={selected}
+              onChange={(e) => setText(e.target.value)}
+            >
+              <option value="" disabled>
+                Auswählen…
+              </option>
+              {MINUTE_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m} Minuten
+                </option>
+              ))}
+            </select>
+          </div>
+          {text !== '' && !valid && <small className="bad">Bitte 1 bis 240 Minuten eingeben</small>}
+        </div>
       </section>
 
       <button
@@ -127,28 +125,8 @@ function Setup({ preset, onStart }: { preset?: Preset; onStart: (p: Preset) => v
         disabled={!valid}
         onClick={() => onStart({ type, plannedMin: minutes })}
       >
-        ▶ {minutes} Min starten
+        {valid ? `▶ ${minutes} Min starten` : '▶ Starten'}
       </button>
-
-      <details className="card voice">
-        <summary>Per Sprache starten (Siri)</summary>
-        <p className="hint">
-          Alexa kann die App nicht direkt öffnen. Mit der iPhone-App „Kurzbefehle“ geht
-          es mit Siri: Neuer Kurzbefehl → Aktion „URLs öffnen“ → diesen Link einfügen →
-          Name z. B. „Meditation“. Dann: „Hey Siri, Meditation“.
-        </p>
-        <code className="link">{link}</code>
-        <button
-          className="ghost"
-          onClick={async () => {
-            await navigator.clipboard?.writeText(link)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-          }}
-        >
-          {copied ? 'Kopiert ✓' : 'Link kopieren'}
-        </button>
-      </details>
     </>
   )
 }
