@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { TopicIcon } from '../components/icons'
-import { ProgressBar } from '../components/ui'
-import { STATUS_LABEL, evaluateGoal, fmtNum, goalTitle, metricDef } from '../goals'
+import PeriodBoard from '../components/PeriodBoard'
+import { Seg } from '../components/ui'
+import { PERIOD_NAMES, periodStartKey } from '../goals'
 import type { AppData } from '../goals'
 import { dayStreak, dayKey, sum, todayKey, weekKeys } from '../stats'
-import type { Goal, Topic } from '../types'
+import type { Goal, Period, Route } from '../types'
 
 function useOnline() {
   const [online, setOnline] = useState(navigator.onLine)
@@ -24,18 +25,33 @@ function useOnline() {
 interface Props {
   data: AppData
   goals: Goal[]
-  onOpen: (t: Topic) => void
+  onOpen: (t: Route) => void
+  onToggleTodo: (id: string) => void
+  onAddTodo: (title: string, period: Period, offset: 0 | 1) => void
   onExport: () => void
   onImport: (file: File) => Promise<string>
 }
 
-export default function Home({ data, goals, onOpen, onExport, onImport }: Props) {
+export default function Home({
+  data,
+  goals,
+  onOpen,
+  onToggleTodo,
+  onAddTodo,
+  onExport,
+  onImport,
+}: Props) {
   const online = useOnline()
   const fileRef = useRef<HTMLInputElement>(null)
   const [msg, setMsg] = useState('')
+  const [period, setPeriod] = useState<Period>('day')
   const today = todayKey()
   const week = new Set(weekKeys())
   const dayOf = (iso: string) => dayKey(new Date(iso))
+  const dayStart = periodStartKey('day')
+  const todosOpenToday = data.todos.filter(
+    (t) => t.period === 'day' && !t.done && t.start <= dayStart,
+  ).length
 
   const medWeek = data.meditation.filter((s) => week.has(dayOf(s.startedAt))).length
   const medStreak = dayStreak(new Set(data.meditation.map((s) => dayOf(s.startedAt))))
@@ -47,7 +63,14 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
   const approachWeek = socialWeek.filter((e) => e.kind === 'approach').length
   const datesWeek = socialWeek.filter((e) => e.kind === 'date').length
 
-  const topics: { id: Topic; name: string; info: string }[] = [
+  const topics: { id: Exclude<Route, 'home'>; name: string; info: string }[] = [
+    {
+      id: 'todo',
+      name: 'ToDo',
+      info: data.todos.length
+        ? `${todosOpenToday} offen heute · ${data.todos.filter((t) => !t.done).length} insgesamt`
+        : 'Tag, Woche, Monat, Jahr',
+    },
     {
       id: 'meditation',
       name: 'Meditation',
@@ -86,8 +109,6 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
     },
   ]
 
-  const evals = goals.map((g) => ({ g, ev: evaluateGoal(g, data) }))
-
   return (
     <main className="app">
       <header className="header">
@@ -106,29 +127,23 @@ export default function Home({ data, goals, onOpen, onExport, onImport }: Props)
         </span>
       </header>
 
-      {evals.length > 0 && (
-        <>
-          <p className="muted section">Ziele</p>
-          <section className="card">
-            <ul className="list goals">
-              {evals.map(({ g, ev }) => (
-                <li key={g.id}>
-                  <button className="goalrow" onClick={() => onOpen(g.topic)}>
-                    <div className="goalrow-top">
-                      <b>{goalTitle(g, data.habits)}</b>
-                      <span className={`status ${ev.status}`}>{STATUS_LABEL[ev.status]}</span>
-                    </div>
-                    <ProgressBar value={ev.current} max={ev.target} />
-                    <small className="muted">
-                      {fmtNum(ev.current)} / {fmtNum(ev.target)} {metricDef(g).unit}
-                    </small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      )}
+      <p className="muted section">Ziele</p>
+      <Seg
+        value={period}
+        onChange={setPeriod}
+        options={(['day', 'week', 'month', 'year'] as Period[]).map((p) => ({
+          id: p,
+          label: PERIOD_NAMES[p].short,
+        }))}
+      />
+      <PeriodBoard
+        period={period}
+        data={data}
+        goals={goals}
+        onToggle={onToggleTodo}
+        onAdd={onAddTodo}
+        onOpenTopic={onOpen}
+      />
 
       <p className="muted section">Themen</p>
       {topics.map((t) => (

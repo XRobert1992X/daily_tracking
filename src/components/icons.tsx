@@ -1,7 +1,17 @@
 import type { ReactNode } from 'react'
 import type { SocialKind, Topic } from '../types'
 
-const GLYPHS: Record<Topic, ReactNode> = {
+const GLYPHS: Record<Topic | 'todo', ReactNode> = {
+  todo: (
+    <>
+      <path d="M9 13l3 3 5-6" />
+      <path d="M23 14h16" />
+      <path d="M9 24l3 3 5-6" />
+      <path d="M23 25h16" />
+      <path d="M9 35l3 3 5-6" />
+      <path d="M23 36h16" />
+    </>
+  ),
   meditation: (
     <>
       <path d="M24 11c4.5 5 4.5 13.500 0 20-4.500-6.500-4.500-15 0-20z" />
@@ -48,7 +58,7 @@ const GLYPHS: Record<Topic, ReactNode> = {
   ),
 }
 
-export function TopicIcon({ topic, size = 52 }: { topic: Topic; size?: number }) {
+export function TopicIcon({ topic, size = 52 }: { topic: Topic | 'todo'; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden className="topic-svg">
       <rect x="0.5" y="0.5" width="47" height="47" rx="13" fill="#141417" stroke="#2a2a30" />

@@ -133,3 +133,60 @@ export function useToggle(initial = false) {
   const [on, setOn] = useState(initial)
   return [on, () => setOn((v) => !v), setOn] as const
 }
+
+// Fortschrittsring mit Zahl in der Mitte
+export function Ring({
+  done,
+  total,
+  size = 92,
+  label,
+}: {
+  done: number
+  total: number
+  size?: number
+  label?: string
+}) {
+  const r = 38
+  const c = 2 * Math.PI * r
+  const pct = total > 0 ? done / total : 0
+  return (
+    <div className="ring2" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 92 92" width={size} height={size}>
+        <defs>
+          <linearGradient id="ring2g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#7c5cff" />
+            <stop offset="1" stopColor="#22d3ee" />
+          </linearGradient>
+        </defs>
+        <circle cx="46" cy="46" r={r} className="ring2-bg" />
+        <circle
+          cx="46"
+          cy="46"
+          r={r}
+          className={`ring2-fg ${total > 0 && done >= total ? 'full' : ''}`}
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - pct)}
+        />
+      </svg>
+      <div className="ring2-text">
+        <b>{done}</b>
+        <small>/ {total}</small>
+        {label && <span className="sr-only">{label}</span>}
+      </div>
+    </div>
+  )
+}
+
+// Eine Markierung pro Wochentag (Mo–So), gefüllt wenn der Tageswert erreicht ist
+export function WeekDots({ days }: { days: { hit: boolean; future: boolean; today: boolean }[] }) {
+  return (
+    <div className="wdots">
+      {days.map((d, i) => (
+        <div key={i} className={`wdot ${d.hit ? 'hit' : ''} ${d.today ? 'today' : ''} ${d.future ? 'future' : ''}`}>
+          <span>{d.hit ? '✓' : ''}</span>
+          <small>{['M', 'D', 'M', 'D', 'F', 'S', 'S'][i]}</small>
+        </div>
+      ))}
+    </div>
+  )
+}

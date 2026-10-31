@@ -12,6 +12,7 @@ export const KEYS = {
   focus: 'focus-sessions',
   goals: 'goals',
   social: 'social',
+  todos: 'todos',
 } as const
 
 export type StoreName = keyof typeof KEYS

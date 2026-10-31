@@ -10,6 +10,7 @@ import type {
   Period,
   ReadingLog,
   SocialEntry,
+  TodoItem,
   Topic,
 } from './types'
 
@@ -22,6 +23,7 @@ export interface AppData {
   moods: MoodEntry[]
   focus: FocusSession[]
   social: SocialEntry[]
+  todos: TodoItem[]
 }
 
 export interface MetricDef {
@@ -76,14 +78,20 @@ export function metricDef(goal: Goal) {
   return METRICS[goal.topic].find((m) => m.id === goal.metric) ?? METRICS[goal.topic][0]
 }
 
+export function goalUnit(goal: Goal) {
+  return goal.dayMin ? 'Tage' : metricDef(goal).unit
+}
+
 export function goalTitle(goal: Goal, habits: Habit[]) {
   const per = PERIODS.find((p) => p.id === goal.period)?.per ?? ''
   const m = metricDef(goal)
+  const min = goal.dayMin ? `≥ ${fmtNum(goal.dayMin)} ${m.unit}`.trim() : ''
   if (goal.topic === 'habits') {
     const h = habits.find((x) => x.id === goal.refId)
-    return `${h ? `${h.icon} ${h.name}` : 'Gelöschte Gewohnheit'} ${per}`
+    const name = h ? `${h.icon} ${h.name}` : 'Gelöschte Gewohnheit'
+    return goal.dayMin ? `${name}: Tage mit ${min} ${per}` : `${name} ${per}`
   }
-  return `${m.label} ${per}`
+  return goal.dayMin ? `Tage mit ${m.label} ${min} ${per}` : `${m.label} ${per}`
 }
 
 type Daily = Map<string, { sum: number; n: number }>
@@ -183,6 +191,8 @@ export interface GoalEval {
   history: { label: string; value: number; hit: boolean; current: boolean }[]
   streak: number
   rate: number | null
+  // Nur bei Wochenzielen mit Tageswert: ein Punkt pro Wochentag (Mo–So)
+  weekDays?: { hit: boolean; future: boolean; today: boolean }[]
 }
 
 export function evaluateGoal(goal: Goal, data: AppData): GoalEval {
@@ -192,18 +202,22 @@ export function evaluateGoal(goal: Goal, data: AppData): GoalEval {
   today.setHours(0, 0, 0, 0)
   const created = new Date(goal.createdAt)
   created.setHours(0, 0, 0, 0)
+  const dayMin = goal.dayMin
 
   const valueOf = (start: Date, end: Date) => {
     let s = 0
     let n = 0
     for (let d = start; d <= end; d = addDays(d, 1)) {
       const e = daily.get(dayKey(d))
-      if (e) {
+      if (!e) continue
+      if (dayMin) {
+        if (e.sum >= dayMin) s += 1
+      } else {
         s += e.sum
         n += e.n
       }
     }
-    return def.agg === 'sum' ? s : n ? s / n : 0
+    return dayMin || def.agg === 'sum' ? s : n ? s / n : 0
   }
 
   const cur = periodRange(goal.period, 0)
@@ -232,6 +246,18 @@ export function evaluateGoal(goal: Goal, data: AppData): GoalEval {
     status = current >= goal.target * (elapsed / days) * 0.85 ? 'ontrack' : 'behind'
   }
 
+  const weekDays =
+    dayMin && goal.period === 'week'
+      ? Array.from({ length: 7 }, (_, i) => {
+          const d = addDays(cur.start, i)
+          return {
+            hit: (daily.get(dayKey(d))?.sum ?? 0) >= dayMin,
+            future: d > today,
+            today: d.getTime() === today.getTime(),
+          }
+        })
+      : undefined
+
   return {
     current,
     target: goal.target,
@@ -240,6 +266,7 @@ export function evaluateGoal(goal: Goal, data: AppData): GoalEval {
     history,
     streak,
     rate,
+    weekDays,
   }
 }
 
@@ -252,4 +279,29 @@ export const STATUS_LABEL: Record<GoalStatus, string> = {
 
 export function fmtNum(v: number) {
   return Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toString()
+}
+
+export function periodStartKey(period: Period, offset = 0) {
+  return dayKey(periodRange(period, offset).start)
+}
+
+export const PERIOD_NAMES: Record<Period, { now: string; next: string; short: string }> = {
+  day: { now: 'Heute', next: 'Morgen', short: 'Tag' },
+  week: { now: 'Diese Woche', next: 'Nächste Woche', short: 'Woche' },
+  month: { now: 'Dieser Monat', next: 'Nächster Monat', short: 'Monat' },
+  year: { now: 'Dieses Jahr', next: 'Nächstes Jahr', short: 'Jahr' },
+}
+
+// Zusatzzeile unter dem Zeitraum, z. B. "KW 44 · 26.10.–01.11."
+export function periodSubtitle(period: Period) {
+  const r = periodRange(period, 0)
+  const d = (x: Date) => x.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+  if (period === 'day') {
+    return r.start.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })
+  }
+  if (period === 'week') return `${r.label} · ${d(r.start)}–${d(r.end)}`
+  if (period === 'month') {
+    return r.start.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+  }
+  return r.label
 }

@@ -114,6 +114,7 @@ export const SOCIAL_KINDS: { id: SocialKind; label: string; short: string }[] = 
 ]
 
 export type Period = 'day' | 'week' | 'month' | 'year'
+export type Route = 'home' | 'todo' | Topic
 
 export interface Goal {
   id: string
@@ -122,5 +123,18 @@ export interface Goal {
   period: Period
   target: number
   refId?: string
+  // Gesetzt: gezählt werden Tage, an denen der Tageswert mindestens dayMin erreicht
+  dayMin?: number
+  createdAt: string
+}
+
+export interface TodoItem {
+  id: string
+  title: string
+  period: Period
+  // erster Tag des Zeitraums (Tag, Montag, Monatserster, 1. Januar)
+  start: string
+  done: boolean
+  doneAt?: string
   createdAt: string
 }

@@ -1162,6 +1162,283 @@ textarea {
   flex: none;
 }
 
+/* Board: Ring, ToDos, Wochenpunkte */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.ring2 {
+  position: relative;
+  flex: none;
+}
+
+.ring2 svg {
+  transform: rotate(-90deg);
+}
+
+.ring2-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 8;
+}
+
+.ring2-fg {
+  fill: none;
+  stroke: url(#ring2g);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.ring2-fg.full {
+  stroke: var(--ok);
+}
+
+.ring2-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+
+.ring2-text b {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.ring2-text small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.board-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.board-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.board-text b {
+  font-size: 20px;
+}
+
+.board-msg {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.board-msg.ok {
+  color: var(--ok);
+}
+
+.addrow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.addrow input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 12px;
+  font-size: 16px;
+}
+
+.addrow select {
+  width: auto;
+  max-width: 130px;
+  padding: 11px 26px 11px 10px;
+  font-size: 13px;
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+}
+
+.addbtn {
+  width: 44px;
+  flex: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--text);
+  color: #000;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.addbtn:disabled {
+  opacity: 0.3;
+}
+
+.todos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.todo:first-child {
+  border-top: 0;
+}
+
+.todo-check {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  border-radius: 8px;
+  border: 2px solid #52525b;
+  background: transparent;
+  color: #04120c;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.todo-check:active {
+  transform: scale(0.88);
+}
+
+.todo.done .todo-check {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.todo-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.todo.done .todo-title {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+}
+
+.todo-title em {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.todo-title em.late {
+  color: var(--bad);
+  background: rgba(251, 146, 60, 0.16);
+}
+
+.todo-title em.when {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.todo-dot {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 8px;
+  border: 2px dashed #3f3f46;
+}
+
+.todo.planned .todo-title {
+  color: var(--muted);
+}
+
+.goals-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.goals-list > li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.goals-list > li:first-child {
+  border-top: 0;
+}
+
+.goalrow:disabled {
+  color: inherit;
+}
+
+.wdots {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0;
+}
+
+.wdot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.wdot span {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #04120c;
+}
+
+.wdot.hit span {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.wdot.today span {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+.wdot.future {
+  opacity: 0.4;
+}
+
+.wdot small {
+  font-size: 10px;
+}
+
+.hint.pad {
+  padding: 0 4px;
+}
+
 .chipbtn.on {
   background: rgba(124, 92, 255, 0.35);
   border-color: transparent;
