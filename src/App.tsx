@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { unlockAudio } from './audio'
+import {
+  createSnapshot,
+  deleteSnapshot,
+  listSnapshots,
+  loadSnapshot,
+  pinnedPhotoIds,
+} from './backups'
+import type { SnapshotMeta, SnapshotReason } from './backups'
 import { periodStartKey } from './goals'
 import type { AppData } from './goals'
 import { usePhotoApi } from './photos'
@@ -15,6 +23,7 @@ import Todo from './screens/Todo'
 import Trading from './screens/Trading'
 import {
   exportBackup,
+  lastExportAt,
   loadActive,
   parseBackup,
   requestPersistentStorage,
@@ -77,20 +86,89 @@ export default function App() {
     setDietTdee(n)
   }
 
+  const stores: Record<
+    StoreName,
+    { items: Row[]; merge(list: Row[]): number; replaceAll(list: Row[]): void }
+  > = {
+    meditation,
+    books,
+    readingLogs,
+    habits,
+    habitLogs,
+    moods,
+    focus,
+    social,
+    todos,
+    diet,
+    trades,
+    goals,
+  }
+  const collect = () =>
+    Object.fromEntries(
+      (Object.keys(stores) as StoreName[]).map((k) => [k, stores[k].items]),
+    ) as Record<StoreName, Row[]>
+
+  // Sicherungen (Schnappschüsse) und Datei-Export
+  const [snaps, setSnaps] = useState<SnapshotMeta[]>([])
+  const [snapsLoaded, setSnapsLoaded] = useState(false)
+  const [lastExport, setLastExport] = useState(lastExportAt)
+
+  const snapshotNow = async (reason: SnapshotReason) => {
+    setSnaps(await createSnapshot(collect(), photoApi.metas, dietTdee, reason))
+  }
+
+  useEffect(() => {
+    void listSnapshots().then((l) => {
+      setSnaps(l)
+      setSnapsLoaded(true)
+    })
+  }, [])
+
   useEffect(requestPersistentStorage, [])
 
-  // Fotos, deren Eintrag gelöscht wurde (oder nie gespeichert), werden aufgeräumt
   const allLoaded =
     meditation.loaded &&
     books.loaded &&
     readingLogs.loaded &&
+    habits.loaded &&
+    habitLogs.loaded &&
     moods.loaded &&
     focus.loaded &&
     social.loaded &&
     todos.loaded &&
     diet.loaded &&
     trades.loaded &&
-    photoApi.loaded
+    goals.loaded &&
+    photoApi.loaded &&
+    snapsLoaded
+
+  // Fotos, die eine Sicherung braucht, werden nicht gelöscht
+  useEffect(() => {
+    photoApi.setPinned(pinnedPhotoIds(snaps))
+    if (allLoaded) void photoApi.gc()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snaps, allLoaded])
+
+  // Automatische Sicherung: einmal pro Tag beim Start, sobald es Daten gibt
+  useEffect(() => {
+    if (!allLoaded) return
+    const total = Object.values(collect()).reduce((a, l) => a + l.length, 0)
+    const last = snaps.find((s) => s.reason === 'auto')
+    if (total === 0 || (last && Date.now() - Date.parse(last.at) < 20 * 3_600_000)) return
+    void snapshotNow('auto')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allLoaded])
+
+  const restoreSnapshot = async (id: string) => {
+    const s = await loadSnapshot(id)
+    if (!s) return
+    await snapshotNow('before-restore')
+    for (const k of Object.keys(stores) as StoreName[]) stores[k].replaceAll(s.data[k] ?? [])
+    photoApi.restoreIndex(s.photos)
+    changeTdee(s.dietTdee)
+  }
+
+  // Fotos, deren Eintrag gelöscht wurde (oder nie gespeichert), werden aufgeräumt
   const owners = [
     meditation.items,
     books.items,
@@ -182,21 +260,6 @@ export default function App() {
     onBack: () => setRoute('home'),
   })
 
-  const stores: Record<StoreName, { items: Row[]; merge(list: Row[]): number }> = {
-    meditation,
-    books,
-    readingLogs,
-    habits,
-    habitLogs,
-    moods,
-    focus,
-    social,
-    todos,
-    diet,
-    trades,
-    goals,
-  }
-
   switch (route) {
     case 'diet':
       return (
@@ -268,24 +331,30 @@ export default function App() {
       onToggleTodo={toggleTodo}
       onBumpTodo={bumpTodo}
       onAddTodo={addTodo}
-      onExport={() => {
-        const all = Object.fromEntries(
-          (Object.keys(stores) as StoreName[]).map((k) => [k, stores[k].items]),
-        ) as Record<StoreName, Row[]>
-        void exportBackup(all)
+      onExport={async (withPhotos) => {
+        const photos = withPhotos ? await photoApi.dumpAll() : []
+        if (await exportBackup(collect(), photos)) setLastExport(Date.now())
       }}
       onImport={async (file) => {
         try {
-          const parsed = await parseBackup(file)
+          const { stores: parsed, photos } = await parseBackup(file)
+          await snapshotNow('before-import')
           let added = 0
           for (const k of Object.keys(parsed) as StoreName[]) {
             added += stores[k].merge(parsed[k] ?? [])
           }
-          return `${added} Einträge importiert`
+          const p = await photoApi.importAll(photos)
+          return `${added} Einträge${p ? ` und ${p} Fotos` : ''} importiert`
         } catch {
           return 'Datei konnte nicht gelesen werden'
         }
       }}
+      snapshots={snaps}
+      lastExport={lastExport}
+      photoCount={photoApi.metas.length}
+      onSnapshotNow={() => snapshotNow('manual')}
+      onRestore={restoreSnapshot}
+      onDeleteSnapshot={async (id) => setSnaps(await deleteSnapshot(id))}
     />
   )
 }

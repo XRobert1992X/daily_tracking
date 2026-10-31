@@ -1,11 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { del, get, set } from 'idb-keyval'
+import { del, get, keys, set } from 'idb-keyval'
 
 export interface PhotoMeta {
   id: string
   ownerId: string
   createdAt: string
+}
+
+// Foto im Backup-File: Bild als Base64
+export interface ExportPhoto extends PhotoMeta {
+  type: string
+  data: string
 }
 
 const INDEX_KEY = 'photo-index'
@@ -19,6 +25,12 @@ interface PhotoApi {
   remove: (id: string) => void
   cleanup: (validOwners: Set<string>) => void
   url: (id: string) => Promise<string | null>
+  // Fotos, die von Sicherungen gebraucht werden, bleiben gespeichert
+  setPinned: (ids: Set<string>) => void
+  gc: () => Promise<void>
+  restoreIndex: (metas: PhotoMeta[]) => void
+  dumpAll: () => Promise<ExportPhoto[]>
+  importAll: (list: ExportPhoto[]) => Promise<number>
 }
 
 const noop = async () => {}
@@ -29,11 +41,30 @@ const PhotoContext = createContext<PhotoApi>({
   remove: () => {},
   cleanup: () => {},
   url: async () => null,
+  setPinned: () => {},
+  gc: noop,
+  restoreIndex: () => {},
+  dumpAll: async () => [],
+  importAll: async () => 0,
 })
 
 interface Stored {
   type: string
   buf: ArrayBuffer
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '')
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(blob)
+  })
+}
+
+async function base64ToBuffer(data: string, type: string) {
+  const res = await fetch(`data:${type};base64,${data}`)
+  return res.arrayBuffer()
 }
 
 // Verkleinert Fotos auf max. 1600 px und speichert sie als JPEG, damit der Speicher nicht vollläuft
@@ -62,6 +93,7 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState(false)
   const ref = useRef<PhotoMeta[]>([])
   const urls = useRef(new Map<string, string>())
+  const pinned = useRef(new Set<string>())
 
   useEffect(() => {
     get<PhotoMeta[]>(INDEX_KEY)
@@ -80,7 +112,8 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const dropBlob = useCallback((id: string) => {
-    void del(blobKey(id))
+    // Bilder, die eine Sicherung noch braucht, bleiben im Speicher
+    if (!pinned.current.has(id)) void del(blobKey(id))
     const u = urls.current.get(id)
     if (u) {
       URL.revokeObjectURL(u)
@@ -119,6 +152,42 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
         const u = URL.createObjectURL(new Blob([data.buf], { type: data.type }))
         urls.current.set(id, u)
         return u
+      },
+      setPinned(ids) {
+        pinned.current = ids
+      },
+      // Löscht Bilder, die weder im Index noch von einer Sicherung gebraucht werden
+      async gc() {
+        const live = new Set(ref.current.map((m) => m.id))
+        for (const k of await keys()) {
+          const key = String(k)
+          if (!key.startsWith('photo:')) continue
+          const id = key.slice('photo:'.length)
+          if (!live.has(id) && !pinned.current.has(id)) await del(k)
+        }
+      },
+      restoreIndex(list) {
+        commit(list)
+      },
+      async dumpAll() {
+        const out: ExportPhoto[] = []
+        for (const m of ref.current) {
+          const stored = await get<Stored>(blobKey(m.id))
+          if (!stored) continue
+          out.push({ ...m, type: stored.type, data: await blobToBase64(new Blob([stored.buf])) })
+        }
+        return out
+      },
+      async importAll(list) {
+        const known = new Set(ref.current.map((m) => m.id))
+        const added: PhotoMeta[] = []
+        for (const p of list) {
+          if (known.has(p.id)) continue
+          await set(blobKey(p.id), { type: p.type, buf: await base64ToBuffer(p.data, p.type) })
+          added.push({ id: p.id, ownerId: p.ownerId, createdAt: p.createdAt })
+        }
+        if (added.length) commit([...ref.current, ...added])
+        return added.length
       },
     }),
     [metas, loaded, commit, dropBlob],

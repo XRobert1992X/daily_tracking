@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TargetBars } from '../components/charts'
+import { CumTarget, TargetBars } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import { Attach, PhotoBadge } from '../components/Attach'
 import { DayNav, Header, MarkerBar, Seg, Stat } from '../components/ui'
@@ -292,6 +292,7 @@ function EntryEditor({
 
 function History({ data, goals }: { data: AppData; goals: Goal[] }) {
   const [range, setRange] = useState<'woche' | 'monat'>('woche')
+  const [mode, setMode] = useState<'kum' | 'tag'>('kum')
   const days = range === 'woche' ? weekKeys() : monthKeys()
   const today = todayKey()
   const byDay = new Map<string, DietEntry[]>()
@@ -299,10 +300,20 @@ function History({ data, goals }: { data: AppData; goals: Goal[] }) {
   const sums = days.map((k) => ({ k, ...summarize(byDay.get(k) ?? [], data.dietTdee) }))
   const past = sums.filter((s) => s.k <= today)
 
-  const burnGoal = goals.find((g) => g.metric === 'burned' && g.period === 'day')?.target
-  const defGoal = goals.find((g) => g.metric === 'deficit' && g.period === 'day')?.target
+  // Kumuliert gilt das Wochen- bzw. Monatsziel, pro Tag das Tagesziel
+  const goalPeriod = mode === 'kum' ? (range === 'woche' ? 'week' : 'month') : 'day'
+  const burnGoal = goals.find((g) => g.metric === 'burned' && g.period === goalPeriod)?.target
+  const defGoal = goals.find((g) => g.metric === 'deficit' && g.period === goalPeriod)?.target
   const label = (k: string, i: number) =>
     range === 'woche' ? ['M', 'D', 'M', 'D', 'F', 'S', 'S'][i] : String(new Date(`${k}T12:00:00`).getDate())
+
+  // Laufender Gesamtstand; Tage in der Zukunft haben keinen Wert
+  const cum = (pick: (s: (typeof sums)[number]) => number) => {
+    let run = 0
+    return sums.map((s) => (s.k > today ? null : (run += pick(s))))
+  }
+  const burnCum = cum((s) => s.burned)
+  const defCum = cum((s) => (s.hasFood ? s.balance : 0))
 
   const foodDays = past.filter((s) => s.hasFood)
   const totalDeficit = sum(foodDays.map((s) => s.balance))
@@ -315,6 +326,9 @@ function History({ data, goals }: { data: AppData; goals: Goal[] }) {
       month: '2-digit',
     })
   const listDays = past.filter((s) => s.hasFood || s.burned > 0).reverse()
+  const goalWord = { day: 'Tagesziel', week: 'Wochenziel', month: 'Monatsziel' }[goalPeriod]
+  const goalHint = (what: string) =>
+    `Setze unter „Ziele“ ein ${goalWord} für ${what}, dann erscheint die Markierung.`
 
   return (
     <>
@@ -331,29 +345,49 @@ function History({ data, goals }: { data: AppData; goals: Goal[] }) {
         <Stat label="Ø pro Tag" value={fmt(avgDeficit)} />
         <Stat label="Verbrannt" value={fmt(totalBurned)} />
       </div>
+      <Seg
+        value={mode}
+        onChange={setMode}
+        options={[
+          { id: 'kum', label: 'Kumuliert' },
+          { id: 'tag', label: 'Pro Tag' },
+        ]}
+      />
 
       <section className="card">
-        <p className="muted">Verbrannte kcal pro Tag</p>
-        <TargetBars
-          data={sums.map((s, i) => ({ key: s.k, value: s.burned, label: label(s.k, i) }))}
-          target={burnGoal}
-        />
-        {burnGoal === undefined && (
-          <p className="hint">Setze unter „Ziele“ ein Tagesziel für verbrannte kcal, dann erscheint die Markierung.</p>
+        <p className="muted">
+          {mode === 'kum' ? 'Verbrannte kcal kumuliert' : 'Verbrannte kcal pro Tag'}
+        </p>
+        {mode === 'kum' ? (
+          <CumTarget labels={sums.map((s, i) => label(s.k, i))} values={burnCum} target={burnGoal} />
+        ) : (
+          <TargetBars
+            data={sums.map((s, i) => ({ key: s.k, value: s.burned, label: label(s.k, i) }))}
+            target={burnGoal}
+          />
         )}
+        {burnGoal === undefined && <p className="hint">{goalHint('verbrannte kcal')}</p>}
       </section>
 
       <section className="card">
-        <p className="muted">Defizit (grün) und Überschuss (orange) pro Tag</p>
-        <TargetBars
-          signed
-          data={sums.map((s, i) => ({
-            key: s.k,
-            value: s.hasFood ? s.balance : 0,
-            label: label(s.k, i),
-          }))}
-          target={defGoal}
-        />
+        <p className="muted">
+          {mode === 'kum'
+            ? 'Defizit kumuliert (Überschuss zieht die Kurve nach unten)'
+            : 'Defizit (grün) und Überschuss (orange) pro Tag'}
+        </p>
+        {mode === 'kum' ? (
+          <CumTarget labels={sums.map((s, i) => label(s.k, i))} values={defCum} target={defGoal} />
+        ) : (
+          <TargetBars
+            signed
+            data={sums.map((s, i) => ({
+              key: s.k,
+              value: s.hasFood ? s.balance : 0,
+              label: label(s.k, i),
+            }))}
+            target={defGoal}
+          />
+        )}
       </section>
 
       <section className="card tight">

@@ -1,5 +1,6 @@
 import { get, set } from 'idb-keyval'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ExportPhoto } from './photos'
 import type { ActiveSession } from './types'
 
 export const KEYS = {
@@ -28,6 +29,7 @@ export interface Collection<T extends Row> {
   removeWhere: (fn: (item: T) => boolean) => void
   // Methodensyntax, damit Collections verschiedener Typen als Row-Liste nutzbar sind
   merge(list: T[]): number
+  replaceAll(list: T[]): void
 }
 
 export function useCollection<T extends Row>(
@@ -86,7 +88,9 @@ export function useCollection<T extends Row>(
     [commit],
   )
 
-  return { items, loaded, upsert, remove, removeWhere, merge }
+  const replaceAll = useCallback((list: T[]) => commit(list), [commit])
+
+  return { items, loaded, upsert, remove, removeWhere, merge, replaceAll }
 }
 
 // Bittet Safari, die Daten nicht automatisch zu löschen
@@ -115,18 +119,30 @@ export function clearActive() {
 
 export type BackupData = { [K in StoreName]?: Row[] }
 
-export async function exportBackup(data: Record<StoreName, Row[]>) {
-  const json = JSON.stringify({ version: 2, ...data }, null, 2)
+const LAST_EXPORT_KEY = 'progress:last-export'
+
+export function lastExportAt(): number | null {
+  const n = parseInt(localStorage.getItem(LAST_EXPORT_KEY) ?? '', 10)
+  return n > 0 ? n : null
+}
+
+// Gibt true zurück, wenn die Datei tatsächlich gesichert wurde (nicht bei abgebrochenem Teilen-Dialog)
+export async function exportBackup(
+  data: Record<StoreName, Row[]>,
+  photos: ExportPhoto[],
+): Promise<boolean> {
+  const json = JSON.stringify({ version: 3, ...data, photos })
   const file = new File([json], `progress-backup-${new Date().toLocaleDateString('sv-SE')}.json`, {
     type: 'application/json',
   })
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] })
+      localStorage.setItem(LAST_EXPORT_KEY, String(Date.now()))
+      return true
     } catch {
-      // abgebrochen
+      return false
     }
-    return
   }
   const url = URL.createObjectURL(file)
   const a = document.createElement('a')
@@ -134,19 +150,32 @@ export async function exportBackup(data: Record<StoreName, Row[]>) {
   a.download = file.name
   a.click()
   URL.revokeObjectURL(url)
+  localStorage.setItem(LAST_EXPORT_KEY, String(Date.now()))
+  return true
 }
 
-export async function parseBackup(file: File): Promise<BackupData> {
+export async function parseBackup(
+  file: File,
+): Promise<{ stores: BackupData; photos: ExportPhoto[] }> {
   const data = JSON.parse(await file.text())
-  const out: BackupData = {}
+  const stores: BackupData = {}
   let found = false
   for (const name of Object.keys(KEYS) as StoreName[]) {
     const list: unknown = data?.[name]
     if (Array.isArray(list)) {
-      out[name] = list.filter((x): x is Row => typeof x?.id === 'string')
+      stores[name] = list.filter((x): x is Row => typeof x?.id === 'string')
       found = true
     }
   }
   if (!found) throw new Error('Ungültige Datei')
-  return out
+  const photos: ExportPhoto[] = Array.isArray(data?.photos)
+    ? data.photos.filter(
+        (p: ExportPhoto) =>
+          typeof p?.id === 'string' &&
+          typeof p?.ownerId === 'string' &&
+          typeof p?.type === 'string' &&
+          typeof p?.data === 'string',
+      )
+    : []
+  return { stores, photos }
 }

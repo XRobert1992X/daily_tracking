@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import BackupPanel from '../components/BackupPanel'
 import { TopicIcon } from '../components/icons'
 import PeriodBoard from '../components/PeriodBoard'
 import { Seg } from '../components/ui'
 import { PERIOD_NAMES, periodStartKey } from '../goals'
 import type { AppData } from '../goals'
 import { dayStreak, dayKey, sum, todayKey, weekKeys } from '../stats'
+import type { SnapshotMeta } from '../backups'
 import type { Goal, Period, Route } from '../types'
 
 function useOnline() {
@@ -29,8 +31,14 @@ interface Props {
   onToggleTodo: (id: string) => void
   onBumpTodo: (id: string, delta: 1 | -1) => void
   onAddTodo: (title: string, period: Period, offset: 0 | 1, target?: number) => void
-  onExport: () => void
+  onExport: (withPhotos: boolean) => Promise<void>
   onImport: (file: File) => Promise<string>
+  snapshots: SnapshotMeta[]
+  lastExport: number | null
+  photoCount: number
+  onSnapshotNow: () => Promise<void>
+  onRestore: (id: string) => Promise<void>
+  onDeleteSnapshot: (id: string) => Promise<void>
 }
 
 export default function Home({
@@ -42,10 +50,14 @@ export default function Home({
   onAddTodo,
   onExport,
   onImport,
+  snapshots,
+  lastExport,
+  photoCount,
+  onSnapshotNow,
+  onRestore,
+  onDeleteSnapshot,
 }: Props) {
   const online = useOnline()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [msg, setMsg] = useState('')
   const [period, setPeriod] = useState<Period>('day')
   const today = todayKey()
   const week = new Set(weekKeys())
@@ -191,31 +203,16 @@ export default function Home({
       ))}
 
       <p className="muted section">Backup</p>
-      <section className="card">
-        <div className="row">
-          <button className="ghost" onClick={onExport}>
-            Exportieren
-          </button>
-          <button className="ghost" onClick={() => fileRef.current?.click()}>
-            Importieren
-          </button>
-        </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) setMsg(await onImport(f))
-          }}
-        />
-        {msg && <p className="hint">{msg}</p>}
-        <p className="hint">
-          Alle Daten liegen nur auf diesem Gerät. Exportiere regelmäßig ein Backup.
-        </p>
-      </section>
+      <BackupPanel
+        snapshots={snapshots}
+        lastExport={lastExport}
+        photoCount={photoCount}
+        onExport={onExport}
+        onImport={onImport}
+        onSnapshotNow={onSnapshotNow}
+        onRestore={onRestore}
+        onDeleteSnapshot={onDeleteSnapshot}
+      />
     </main>
   )
 }

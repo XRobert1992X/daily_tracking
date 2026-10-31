@@ -260,6 +260,85 @@ export function TargetBars({
   )
 }
 
+// Laufender Gesamtstand über einen Zeitraum (Tage), mit Zielmarkierung und optionaler Soll-Linie
+export function CumTarget({
+  labels,
+  values,
+  target,
+}: {
+  labels: string[]
+  values: (number | null)[]
+  target?: number
+}) {
+  const W = 320
+  const H = 190
+  const top = 22
+  const bottom = H - 24
+  const n = labels.length
+  const nums = values.filter((v): v is number => v !== null)
+  const maxV = Math.max(target ?? 0, ...nums, 1)
+  const minV = Math.min(0, ...nums)
+  const range = maxV - minV || 1
+  const x = (i: number) => 10 + (i * (W - 20)) / Math.max(1, n - 1)
+  const y = (v: number) => top + ((maxV - v) / range) * (bottom - top)
+  const pts = values
+    .map((v, i) => (v === null ? null : ([x(i), y(v)] as const)))
+    .filter((p): p is readonly [number, number] => p !== null)
+  const last = nums[nums.length - 1] ?? 0
+  const reached = target !== undefined && last >= target
+  const color = reached ? '#34d399' : '#38bdf8'
+  const step = Math.ceil(n / 8)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="chart">
+      <line x1={10} x2={W - 10} y1={y(0)} y2={y(0)} className="axis" />
+      {target !== undefined && (
+        <>
+          <line x1={x(0)} y1={y(0)} x2={x(n - 1)} y2={y(target)} className="pace-line" />
+          <line x1={10} x2={W - 10} y1={y(target)} y2={y(target)} className="target-line" />
+          <text x={W - 10} y={y(target) - 4} className="lbl end target-lbl">
+            Ziel {fmtShort(target)}
+          </text>
+        </>
+      )}
+      {pts.length > 1 && (
+        <polygon
+          points={`${pts[0][0]},${y(0)} ${pts.map((p) => p.join(',')).join(' ')} ${pts[pts.length - 1][0]},${y(0)}`}
+          fill={color}
+          opacity="0.14"
+        />
+      )}
+      <polyline
+        points={pts.map((p) => p.join(',')).join(' ')}
+        fill="none"
+        stroke={color}
+        strokeWidth={2.400}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {pts.length > 0 && (
+        <>
+          <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={4} fill={color} />
+          <text
+            x={Math.min(pts[pts.length - 1][0], W - 28)}
+            y={pts[pts.length - 1][1] - 9}
+            className="val strong"
+          >
+            {fmtShort(last)}
+          </text>
+        </>
+      )}
+      {labels.map((l, i) =>
+        i % step === 0 ? (
+          <text key={i} x={x(i)} y={H - 8} className="lbl mid">
+            {l}
+          </text>
+        ) : null,
+      )}
+    </svg>
+  )
+}
+
 // Kumulierte Kurve (z. B. Gewinn/Verlust über die Zeit)
 export function CumLine({ values, labels }: { values: number[]; labels: [string, string] }) {
   const W = 320
