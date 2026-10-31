@@ -202,7 +202,7 @@ export type TodoPeriod = Period | 'deadline'
 
 // Ein Strich der Zeichenfläche. Koordinaten in 1000er-Breite, pts = x, y, Druck im Dreierpack
 export interface Stroke {
-  tool: 'pen' | 'marker'
+  tool: 'pen' | 'marker' | 'eraser'
   color: string
   width: number
   pts: number[]

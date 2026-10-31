@@ -8,7 +8,10 @@ export const INK_W = 1000
 export interface InkSettings {
   tool: 'pen' | 'marker' | 'eraser'
   color: string
+  // Stift/Marker: Strichstärke, Radierer: Radiergröße (in logischen Einheiten)
   width: number
+  // Radierer: pixel = Teile wegradieren, stroke = ganze Striche löschen
+  eraserMode: 'pixel' | 'stroke'
   // Standard: nur Stift (und Maus) zeichnen, der Finger scrollt
   finger: boolean
 }
@@ -23,6 +26,28 @@ interface Props {
 
 function paint(ctx: CanvasRenderingContext2D, st: Stroke, s: number) {
   const p = st.pts
+  if (st.tool === 'eraser') {
+    // Pixel-Radierer: löscht, was frühere Striche gezeichnet haben
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = '#000'
+    ctx.fillStyle = '#000'
+    ctx.lineWidth = st.width * s
+    if (p.length === 3) {
+      ctx.beginPath()
+      ctx.arc(p[0] * s, p[1] * s, (st.width * s) / 2, 0, Math.PI * 2)
+      ctx.fill()
+    } else {
+      for (let i = 3; i < p.length; i += 3) {
+        ctx.beginPath()
+        ctx.moveTo(p[i - 3] * s, p[i - 2] * s)
+        ctx.lineTo(p[i] * s, p[i + 1] * s)
+        ctx.stroke()
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over'
+    return
+  }
   ctx.strokeStyle = st.color
   ctx.fillStyle = st.color
   ctx.globalAlpha = st.tool === 'marker' ? 0.35 : 1
@@ -119,7 +144,7 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
     }
     drawing.current = true
     const [x, y, p] = point(e.clientX, e.clientY, e.pressure, e.pointerType === 'pen')
-    if (settings.tool === 'eraser') eraseAt(x, y)
+    if (settings.tool === 'eraser' && settings.eraserMode === 'stroke') eraseAt(x, y)
     else {
       live.current = { tool: settings.tool, color: settings.color, width: settings.width, pts: [x, y, p] }
       draw()
@@ -131,7 +156,7 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
     const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent]
     for (const ev of events.length ? events : [e.nativeEvent]) {
       const [x, y, p] = point(ev.clientX, ev.clientY, ev.pressure, e.pointerType === 'pen')
-      if (settings.tool === 'eraser') eraseAt(x, y)
+      if (settings.tool === 'eraser' && settings.eraserMode === 'stroke') eraseAt(x, y)
       else live.current?.pts.push(x, y, p)
     }
     draw()

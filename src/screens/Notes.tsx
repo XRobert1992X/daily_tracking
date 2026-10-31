@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import InkCanvas from '../components/InkCanvas'
-import type { InkSettings } from '../components/InkCanvas'
+import InkToolbar, { useInkTools } from '../components/InkToolbar'
 import { Header } from '../components/ui'
 import { PhotoImg, usePhotoApi } from '../photos'
 import { addDays, dayKey, todayKey } from '../stats'
@@ -13,8 +13,6 @@ interface Props {
   onBack: () => void
 }
 
-const COLORS = ['#f4f4f5', '#38bdf8', '#34d399', '#fbbf24', '#fb7185']
-const WIDTHS = [3, 6, 12]
 const uid = () => crypto.randomUUID()
 
 const stamp = (iso: string) => {
@@ -187,7 +185,9 @@ function NoteEditor({
   const [active, setActive] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [ink, setInk] = useState<InkSettings>({ tool: 'pen', color: COLORS[0], width: 3, finger: false })
+  const tools = useInkTools()
+  // Verlauf pro Zeichenfläche für Rückgängig und Wiederholen
+  const hist = useRef<Record<string, { past: Stroke[][]; future: Stroke[][] }>>({})
   const fileRef = useRef<HTMLInputElement>(null)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
@@ -275,6 +275,35 @@ function NoteEditor({
     })
 
   const hasInk = draft.blocks.some((b) => b.type === 'ink')
+  const inkBlocks = draft.blocks.filter((b): b is Extract<NoteBlock, { type: 'ink' }> => b.type === 'ink')
+  // Rückgängig/Wiederholen gelten für die ausgewählte Zeichenfläche, sonst für die letzte
+  const target = inkBlocks.find((b) => b.id === active) ?? inkBlocks[inkBlocks.length - 1]
+  const histOf = (id: string) => (hist.current[id] ??= { past: [], future: [] })
+  // Jede Änderung der Zeichnung (Strich, Radieren, Leeren) merkt sich den vorherigen Stand
+  const commitInk = (b: Extract<NoteBlock, { type: 'ink' }>, strokes: Stroke[]) => {
+    const h = histOf(b.id)
+    h.past = [...h.past.slice(-49), b.strokes]
+    h.future = []
+    setBlock(b.id, { strokes })
+  }
+  const undo = () => {
+    if (!target) return
+    const h = histOf(target.id)
+    const prev = h.past[h.past.length - 1]
+    if (!prev) return
+    h.past = h.past.slice(0, -1)
+    h.future = [...h.future, target.strokes]
+    setBlock(target.id, { strokes: prev })
+  }
+  const redoStroke = () => {
+    if (!target) return
+    const h = histOf(target.id)
+    const next = h.future[h.future.length - 1]
+    if (!next) return
+    h.future = h.future.slice(0, -1)
+    h.past = [...h.past, target.strokes]
+    setBlock(target.id, { strokes: next })
+  }
 
   return (
     <main
@@ -333,8 +362,8 @@ function NoteEditor({
               <InkCanvas
                 strokes={b.strokes}
                 h={b.h}
-                settings={ink}
-                onChange={(strokes: Stroke[]) => setBlock(b.id, { strokes })}
+                settings={tools.settings}
+                onChange={(strokes: Stroke[]) => commitInk(b, strokes)}
               />
             )}
             {b.type === 'image' && <PhotoImg id={b.photoId} className="nimg" />}
@@ -351,13 +380,7 @@ function NoteEditor({
                   <>
                     <button
                       disabled={b.strokes.length === 0}
-                      onClick={() => setBlock(b.id, { strokes: b.strokes.slice(0, -1) })}
-                    >
-                      Rückgängig
-                    </button>
-                    <button
-                      disabled={b.strokes.length === 0}
-                      onClick={() => confirm('Zeichnung leeren?') && setBlock(b.id, { strokes: [] })}
+                      onClick={() => confirm('Zeichnung leeren?') && commitInk(b, [])}
                     >
                       Leeren
                     </button>
@@ -397,46 +420,13 @@ function NoteEditor({
 
       <div className="notebar">
         {hasInk && (
-          <div className="inkbar">
-            {(['pen', 'marker', 'eraser'] as const).map((t) => (
-              <button
-                key={t}
-                className={`tool ${ink.tool === t ? 'on' : ''}`}
-                onClick={() => setInk({ ...ink, tool: t })}
-              >
-                {t === 'pen' ? 'Stift' : t === 'marker' ? 'Marker' : 'Radierer'}
-              </button>
-            ))}
-            <span className="sep" />
-            {COLORS.map((c) => (
-              <button
-                key={c}
-                aria-label={`Farbe ${c}`}
-                className={`swatch ${ink.color === c && ink.tool !== 'eraser' ? 'on' : ''}`}
-                style={{ background: c }}
-                onClick={() => setInk({ ...ink, color: c, tool: ink.tool === 'eraser' ? 'pen' : ink.tool })}
-              />
-            ))}
-            <span className="sep" />
-            {WIDTHS.map((w) => (
-              <button
-                key={w}
-                aria-label={`Stärke ${w}`}
-                className={`wsel ${ink.width === w ? 'on' : ''}`}
-                onClick={() => setInk({ ...ink, width: w })}
-              >
-                <i style={{ height: w + 1 }} />
-              </button>
-            ))}
-            <span className="sep" />
-            <button
-              className={`tool ${ink.finger ? 'on' : ''}`}
-              onClick={() => setInk({ ...ink, finger: !ink.finger })}
-              title="Standard: nur der Stift zeichnet, der Finger scrollt"
-            >
-              Finger
-            </button>
-          </div>
+          <InkToolbar
+            tools={tools}
+            canUndo={!!target && (hist.current[target.id]?.past.length ?? 0) > 0}
+            canRedo={!!target && (hist.current[target.id]?.future.length ?? 0) > 0}
+            onUndo={undo}
+            onRedo={redoStroke}
+          />
         )}
         <div className="addbar">
           <button onClick={addText}>+ Text</button>
