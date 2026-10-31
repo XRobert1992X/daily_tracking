@@ -3,7 +3,7 @@ import { Attach, PhotoBadge } from '../components/Attach'
 import { BarChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import { KIND_COLORS, KindIcon } from '../components/icons'
-import { Header, Seg, Stat } from '../components/ui'
+import { Header, Meter, Seg, Stat } from '../components/ui'
 import type { AppData } from '../goals'
 import { addDays, dayKey, lastDays, shortDate, sum, todayKey, weekKeys } from '../stats'
 import { SOCIAL_KINDS } from '../types'
@@ -19,7 +19,6 @@ interface Props {
   onBack: () => void
 }
 
-const RATINGS = ['😞', '🙁', '😐', '🙂', '😄']
 const kindOf = (id: SocialKind) => SOCIAL_KINDS.find((k) => k.id === id)!
 const dayOf = (e: SocialEntry) => dayKey(new Date(e.at))
 const timeOf = (e: SocialEntry) =>
@@ -77,17 +76,9 @@ function Editor({
   return (
     <div className="editor">
       <div className="editor-top">
-        <div className="rate">
-          {RATINGS.map((r, i) => (
-            <button
-              key={i}
-              className={rating === i + 1 ? 'on' : ''}
-              aria-label={`Bewertung ${i + 1}`}
-              onClick={() => setRating(rating === i + 1 ? 0 : i + 1)}
-            >
-              {r}
-            </button>
-          ))}
+        <div className="rate-meter">
+          <span className="muted">Bewertung</span>
+          <Meter compact value={rating} max={5} onChange={setRating} />
         </div>
         <button
           className="x"
@@ -99,7 +90,7 @@ function Editor({
             }
           }}
         >
-          🗑
+          Löschen
         </button>
       </div>
       <textarea
@@ -151,7 +142,7 @@ function EntryRows({
               </span>
               <span className="emeta">
                 <PhotoBadge ownerId={e.id} />
-                {e.rating ? RATINGS[e.rating - 1] : ''}
+                {e.rating ? <b className="rate-chip">{e.rating}/5</b> : null}
                 <small>{timeOf(e)}</small>
               </span>
             </button>

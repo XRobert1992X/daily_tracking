@@ -1,7 +1,25 @@
 import type { ReactNode } from 'react'
 import type { SocialKind, Topic } from '../types'
 
-const GLYPHS: Record<Topic | 'todo', ReactNode> = {
+const GLYPHS: Record<Topic | 'todo' | 'notes', ReactNode> = {
+  notes: (
+    <>
+      <path d="M13 8h20a2 2 0 0 1 2 2v28a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" />
+      <path d="M17 17h12M17 24h12M17 31h7" />
+    </>
+  ),
+  gratitude: (
+    <>
+      <circle cx="24" cy="24" r="7" />
+      <path d="M24 8v4M24 36v4M8 24h4M36 24h4M12.700 12.700l2.800 2.800M32.500 32.500l2.800 2.800M35.300 12.700l-2.800 2.800M15.500 32.500l-2.800 2.800" />
+    </>
+  ),
+  sleep: (
+    <>
+      <path d="M32 31a12 12 0 0 1-15-15 12 12 0 1 0 15 15z" />
+      <path d="M33 11v6M30 14h6" />
+    </>
+  ),
   diet: (
     <path d="M24 8c2.500 7 11 10 11 20a11 11 0 0 1-22 0c0-5 2.500-8 5-10 0 4 2 5.500 4 5.500-1.500-6.500-1-11.500 2-15.500z" />
   ),
@@ -67,7 +85,7 @@ const GLYPHS: Record<Topic | 'todo', ReactNode> = {
   ),
 }
 
-export function TopicIcon({ topic, size = 52 }: { topic: Topic | 'todo'; size?: number }) {
+export function TopicIcon({ topic, size = 52 }: { topic: Topic | 'todo' | 'notes'; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden className="topic-svg">
       <rect x="0.5" y="0.5" width="47" height="47" rx="13" fill="#141417" stroke="#2a2a30" />

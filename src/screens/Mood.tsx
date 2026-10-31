@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { Attach, PhotoBadge } from '../components/Attach'
 import { LineChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
-import { Header, Seg, Stat } from '../components/ui'
+import { Header, Meter, Seg, Stat } from '../components/ui'
 import type { AppData } from '../goals'
-import { dailyMood, dayKey, lastDays, shortDate, sum } from '../stats'
+import { dailyMood, dayKey, energy10, lastDays, shortDate, sum } from '../stats'
 import type { Goal, MoodEntry } from '../types'
 
 interface Props {
@@ -17,9 +17,19 @@ interface Props {
   onBack: () => void
 }
 
-const MOODS = ['😞', '🙁', '😐', '🙂', '😄']
-const MOOD_WORDS = ['schlecht', 'mäßig', 'okay', 'gut', 'super']
-const ENERGY_WORDS = ['leer', 'müde', 'normal', 'fit', 'voller Energie']
+const MOOD_WORDS = ['schlecht', 'mäßig', 'okay', 'gut', 'sehr gut']
+const ENERGY_WORDS = [
+  'leer',
+  'sehr müde',
+  'müde',
+  'matt',
+  'okay',
+  'normal',
+  'wach',
+  'fit',
+  'energiegeladen',
+  'voller Energie',
+]
 
 export default function Mood(props: Props) {
   const { data, goals, onBack } = props
@@ -55,25 +65,25 @@ export default function Mood(props: Props) {
 function Scale({
   value,
   onChange,
-  labels,
+  max,
   words,
 }: {
   value: number
   onChange: (n: number) => void
-  labels: string[]
+  max: number
   words: string[]
 }) {
   return (
-    <>
-      <div className="scale">
-        {labels.map((l, i) => (
-          <button key={i} className={value === i + 1 ? 'on' : ''} onClick={() => onChange(i + 1)}>
-            {l}
-          </button>
-        ))}
+    <div className="scale-wrap">
+      <Meter value={value} max={max} onChange={onChange} />
+      <div className="scale-read">
+        <b>
+          {value || '–'}
+          <small>/{max}</small>
+        </b>
+        <small className="muted">{value ? words[value - 1] : 'Bitte wählen'}</small>
       </div>
-      <small className="muted scale-word">{value ? words[value - 1] : 'Bitte wählen'}</small>
-    </>
+    </div>
   )
 }
 
@@ -97,16 +107,11 @@ function CheckIn({
     <>
       <section className="card">
         <p className="muted">Wie fühlst du dich gerade?</p>
-        <Scale value={mood} onChange={setMood} labels={MOODS} words={MOOD_WORDS} />
+        <Scale value={mood} onChange={setMood} max={5} words={MOOD_WORDS} />
       </section>
       <section className="card">
         <p className="muted">Wie viel Energie hast du?</p>
-        <Scale
-          value={energy}
-          onChange={setEnergy}
-          labels={['1', '2', '3', '4', '5']}
-          words={ENERGY_WORDS}
-        />
+        <Scale value={energy} onChange={setEnergy} max={10} words={ENERGY_WORDS} />
       </section>
       <section className="card">
         <label className="field">
@@ -130,6 +135,7 @@ function CheckIn({
             at: new Date().toISOString(),
             mood,
             energy,
+            energyScale: 10,
             note: note.trim() || undefined,
           })
           setMood(0)
@@ -149,7 +155,7 @@ function CheckIn({
               <li key={e.id}>
                 <div>
                   <b>
-                    {MOODS[e.mood - 1]} Stimmung {e.mood} · Energie {e.energy}
+                    Stimmung {e.mood}/5 · Energie {energy10(e)}/10
                   </b>
                   <small className="muted">
                     {new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
@@ -228,13 +234,23 @@ function History({ data }: { data: AppData }) {
           <p className="hint">Noch keine Check-ins.</p>
         ) : (
           <LineChart
+            max={10}
             labels={days.map(shortDate)}
             series={[
-              { name: 'Stimmung', color: '#e4e4e7', values: days.map((k) => daily.get(k)?.mood ?? null) },
-              { name: 'Energie', color: '#22d3ee', values: days.map((k) => daily.get(k)?.energy ?? null) },
+              // Stimmung (1–5) wird für die gemeinsame Skala verdoppelt
+              {
+                name: 'Stimmung',
+                color: '#e4e4e7',
+                values: days.map((k) => {
+                  const m = daily.get(k)?.mood
+                  return m === undefined ? null : m * 2
+                }),
+              },
+              { name: 'Energie', color: '#38bdf8', values: days.map((k) => daily.get(k)?.energy ?? null) },
             ]}
           />
         )}
+        <p className="hint">Skala 1–10. Die Stimmung (1–5) ist dafür verdoppelt dargestellt.</p>
       </section>
 
       <section className="card">
@@ -274,7 +290,7 @@ function History({ data }: { data: AppData }) {
               <li key={e.id}>
                 <div>
                   <b>
-                    {MOODS[e.mood - 1]} {e.mood} · ⚡ {e.energy}
+                    Stimmung {e.mood}/5 · Energie {energy10(e)}/10
                   </b>
                   <small className="muted">
                     {new Date(e.at).toLocaleDateString('de-DE', {

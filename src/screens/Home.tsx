@@ -3,11 +3,13 @@ import BackupPanel from '../components/BackupPanel'
 import { TopicIcon } from '../components/icons'
 import PeriodBoard from '../components/PeriodBoard'
 import { Seg } from '../components/ui'
-import { PERIOD_NAMES, periodStartKey } from '../goals'
+import { PERIOD_NAMES, duePenalties, periodStartKey } from '../goals'
 import type { AppData } from '../goals'
-import { dayStreak, dayKey, sum, todayKey, weekKeys } from '../stats'
+import { dayStreak, dayKey, energy10, sum, todayKey, weekKeys } from '../stats'
+import { durationMin, fmtDiff, fmtDur, fmtTime, wakeDiff } from '../sleep'
 import type { SnapshotMeta } from '../backups'
-import type { Goal, Period, Route } from '../types'
+import { PenaltyList } from '../components/PenaltyList'
+import type { Goal, Route, TodoPeriod } from '../types'
 
 function useOnline() {
   const [online, setOnline] = useState(navigator.onLine)
@@ -30,7 +32,7 @@ interface Props {
   onOpen: (t: Route) => void
   onToggleTodo: (id: string) => void
   onBumpTodo: (id: string, delta: 1 | -1) => void
-  onAddTodo: (title: string, period: Period, offset: 0 | 1, target?: number) => void
+  onAddTodo: (title: string, period: TodoPeriod, offset: 0 | 1, target?: number, due?: string) => void
   onExport: (withPhotos: boolean) => Promise<void>
   onImport: (file: File) => Promise<string>
   snapshots: SnapshotMeta[]
@@ -58,13 +60,17 @@ export default function Home({
   onDeleteSnapshot,
 }: Props) {
   const online = useOnline()
-  const [period, setPeriod] = useState<Period>('day')
+  const [period, setPeriod] = useState<TodoPeriod>('day')
+  const dues = duePenalties(goals, data, data.penalties)
+  const dueTotal = dues.reduce((a, p) => a + (p.goal.penalty?.amount ?? 0), 0)
   const today = todayKey()
   const week = new Set(weekKeys())
   const dayOf = (iso: string) => dayKey(new Date(iso))
   const dayStart = periodStartKey('day')
   const todosOpenToday = data.todos.filter(
-    (t) => t.period === 'day' && !t.done && t.start <= dayStart,
+    (t) =>
+      !t.done &&
+      ((t.period === 'day' && t.start <= dayStart) || (t.period === 'deadline' && t.start <= dayStart)),
   ).length
 
   const medWeek = data.meditation.filter((s) => week.has(dayOf(s.startedAt))).length
@@ -97,6 +103,19 @@ export default function Home({
     ? `Heute ${eur(tradeToday)} · Monat ${eur(tradeMonth)}`
     : 'Noch kein Trade'
 
+  const gratitudeToday = data.gratitude.filter((g) => dayOf(g.at) === today).length
+  const gratitudeStreak = dayStreak(new Set(data.gratitude.map((g) => dayOf(g.at))))
+  const gratitudeInfo = data.gratitude.length
+    ? `Heute ${gratitudeToday}× · Serie ${gratitudeStreak} Tage`
+    : 'Noch kein Eintrag'
+  const sleepToday = data.sleep.find((e) => e.day === today)
+  const lastSleep = [...data.sleep].reverse().find((e) => durationMin(e) !== null)
+  const sleepInfo = sleepToday?.wake
+    ? `Aufgestanden ${fmtTime(sleepToday.wake)} (${fmtDiff(wakeDiff(sleepToday, data.sleepCfg) ?? 0)})`
+    : lastSleep
+      ? `Letzte Nacht ${fmtDur(durationMin(lastSleep) ?? 0)}`
+      : `Ziel: auf ${data.sleepCfg.wake} · Bett ${data.sleepCfg.bed}`
+
   const topics: { id: Exclude<Route, 'home'>; name: string; info: string }[] = [
     {
       id: 'todo',
@@ -104,6 +123,13 @@ export default function Home({
       info: data.todos.length
         ? `${todosOpenToday} offen heute · ${data.todos.filter((t) => !t.done).length} insgesamt`
         : 'Tag, Woche, Monat, Jahr',
+    },
+    {
+      id: 'notes',
+      name: 'Notizen',
+      info: data.notes.length
+        ? `${data.notes.length} ${data.notes.length === 1 ? 'Seite' : 'Seiten'}`
+        : 'Text, Zeichnungen, Screenshots',
     },
     {
       id: 'diet',
@@ -114,6 +140,16 @@ export default function Home({
       id: 'trading',
       name: 'Trading',
       info: tradeInfo,
+    },
+    {
+      id: 'sleep',
+      name: 'Aufstehen & Schlaf',
+      info: sleepInfo,
+    },
+    {
+      id: 'gratitude',
+      name: 'Dankbarkeit',
+      info: gratitudeInfo,
     },
     {
       id: 'meditation',
@@ -135,7 +171,9 @@ export default function Home({
     {
       id: 'mood',
       name: 'Stimmung & Energie',
-      info: lastMood ? `Zuletzt: Stimmung ${lastMood.mood} · Energie ${lastMood.energy}` : 'Noch kein Check-in',
+      info: lastMood
+        ? `Zuletzt: Stimmung ${lastMood.mood}/5 · Energie ${energy10(lastMood)}/10`
+        : 'Noch kein Check-in',
     },
     {
       id: 'focus',
@@ -171,11 +209,21 @@ export default function Home({
         </span>
       </header>
 
+      {dues.length > 0 && (
+        <section className="card penalty-card">
+          <p className="muted">
+            Offene Strafen ({dues.length}
+            {dueTotal > 0 ? ` · ${dueTotal.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}` : ''})
+          </p>
+          <PenaltyList due={dues} data={data} />
+        </section>
+      )}
+
       <p className="muted section">Ziele</p>
       <Seg
         value={period}
         onChange={setPeriod}
-        options={(['day', 'week', 'month', 'year'] as Period[]).map((p) => ({
+        options={(['day', 'week', 'month', 'year', 'deadline'] as TodoPeriod[]).map((p) => ({
           id: p,
           label: PERIOD_NAMES[p].short,
         }))}

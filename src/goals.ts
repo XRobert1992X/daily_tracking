@@ -1,17 +1,24 @@
-import { addDays, dayKey, weekStart } from './stats'
+import { bedDiff, durationMin, wakeDiff } from './sleep'
+import { addDays, dayKey, energy10, weekStart } from './stats'
 import type {
   Book,
   DietEntry,
   FocusSession,
   Goal,
+  GratitudeEntry,
   Habit,
   HabitLog,
   MeditationSession,
   MoodEntry,
+  NoteEntry,
   Period,
+  PenaltyLog,
   ReadingLog,
+  SleepCfg,
+  SleepEntry,
   SocialEntry,
   TodoItem,
+  TodoPeriod,
   Topic,
   TradeEntry,
 } from './types'
@@ -28,8 +35,13 @@ export interface AppData {
   todos: TodoItem[]
   diet: DietEntry[]
   trades: TradeEntry[]
+  gratitude: GratitudeEntry[]
+  sleep: SleepEntry[]
+  penalties: PenaltyLog[]
+  notes: NoteEntry[]
   // Täglicher Grundverbrauch in kcal
   dietTdee: number
+  sleepCfg: SleepCfg
 }
 
 export interface MetricDef {
@@ -72,6 +84,15 @@ export const METRICS: Record<Topic, MetricDef[]> = {
   trading: [
     { id: 'pnl', label: 'Gewinn/Verlust', unit: '€', agg: 'sum' },
     { id: 'trades', label: 'Trades', unit: '×', agg: 'sum' },
+  ],
+  gratitude: [
+    { id: 'entries', label: 'Dankbarkeits-Einträge', unit: '×', agg: 'sum' },
+    { id: 'items', label: 'Dankbarkeiten', unit: '×', agg: 'sum' },
+  ],
+  sleep: [
+    { id: 'wakeOk', label: 'Pünktlich aufgestanden', unit: 'Tage', agg: 'sum' },
+    { id: 'bedOk', label: 'Pünktlich im Bett', unit: 'Tage', agg: 'sum' },
+    { id: 'hours', label: 'Ø Schlafdauer', unit: 'h', agg: 'avg' },
   ],
 }
 
@@ -146,7 +167,7 @@ function buildDaily(goal: Goal, d: AppData): Daily {
       for (const e of d.moods) {
         const k = day(e.at)
         if (goal.metric === 'checkins') add(out, k, 1)
-        else add(out, k, goal.metric === 'avgMood' ? e.mood : e.energy)
+        else add(out, k, goal.metric === 'avgMood' ? e.mood : energy10(e))
       }
       break
     }
@@ -176,6 +197,23 @@ function buildDaily(goal: Goal, d: AppData): Daily {
     }
     case 'trading':
       for (const t of d.trades) add(out, day(t.at), goal.metric === 'pnl' ? t.amount : 1)
+      break
+    case 'gratitude':
+      for (const g of d.gratitude) add(out, day(g.at), goal.metric === 'items' ? g.items.length : 1)
+      break
+    case 'sleep':
+      for (const e of d.sleep) {
+        if (goal.metric === 'wakeOk') {
+          const diff = wakeDiff(e, d.sleepCfg)
+          if (diff !== null) add(out, e.day, diff <= 0 ? 1 : 0)
+        } else if (goal.metric === 'bedOk') {
+          const diff = bedDiff(e, d.sleepCfg)
+          if (diff !== null) add(out, e.day, diff <= 0 ? 1 : 0)
+        } else {
+          const dur = durationMin(e)
+          if (dur !== null) add(out, e.day, dur / 60)
+        }
+      }
       break
   }
   return out
@@ -223,7 +261,7 @@ export interface GoalEval {
   target: number
   pct: number
   status: GoalStatus
-  history: { label: string; value: number; hit: boolean; current: boolean }[]
+  history: { label: string; start: string; value: number; hit: boolean; current: boolean }[]
   streak: number
   rate: number | null
   // Nur bei Wochenzielen mit Tageswert: ein Punkt pro Wochentag (Mo–So)
@@ -259,11 +297,18 @@ export function evaluateGoal(goal: Goal, data: AppData): GoalEval {
   const current = valueOf(cur.start, today < cur.end ? today : cur.end)
 
   const history: GoalEval['history'] = []
-  for (let off = 0; off >= -7; off--) {
+  // 12 Zeiträume zurück, damit auch ältere verfehlte Zeiträume für Strafen sichtbar bleiben
+  for (let off = 0; off >= -11; off--) {
     const r = periodRange(goal.period, off)
     if (r.end < created) break
     const value = valueOf(r.start, r.end < today ? r.end : today)
-    history.unshift({ label: r.label, value, hit: value >= goal.target, current: off === 0 })
+    history.unshift({
+      label: r.label,
+      start: dayKey(r.start),
+      value,
+      hit: value >= goal.target,
+      current: off === 0,
+    })
   }
 
   const closed = history.filter((h) => !h.current)
@@ -320,15 +365,50 @@ export function periodStartKey(period: Period, offset = 0) {
   return dayKey(periodRange(period, offset).start)
 }
 
-export const PERIOD_NAMES: Record<Period, { now: string; next: string; short: string }> = {
+export const PERIOD_NAMES: Record<TodoPeriod, { now: string; next: string; short: string }> = {
   day: { now: 'Heute', next: 'Morgen', short: 'Tag' },
   week: { now: 'Diese Woche', next: 'Nächste Woche', short: 'Woche' },
   month: { now: 'Dieser Monat', next: 'Nächster Monat', short: 'Monat' },
   year: { now: 'Dieses Jahr', next: 'Nächstes Jahr', short: 'Jahr' },
+  deadline: { now: 'Deadlines', next: 'Deadlines', short: 'Deadline' },
+}
+
+export interface DuePenalty {
+  id: string
+  goal: Goal
+  start: string
+  label: string
+  value: number
+}
+
+// Verfehlte, abgelaufene Zeiträume von Zielen mit Strafe, deren Strafe noch nicht erledigt ist.
+// Der Zeitraum, in dem das Ziel angelegt wurde, zählt nicht (er war nur teilweise im Spiel).
+export function duePenalties(goals: Goal[], data: AppData, logs: PenaltyLog[]): DuePenalty[] {
+  const done = new Set(logs.map((l) => l.id))
+  const out: DuePenalty[] = []
+  for (const g of goals) {
+    if (!g.penalty) continue
+    const createdDay = dayKey(new Date(g.createdAt))
+    for (const h of evaluateGoal(g, data).history) {
+      if (h.current || h.hit || h.start < createdDay) continue
+      const id = `${g.id}:${h.start}`
+      if (!done.has(id)) out.push({ id, goal: g, start: h.start, label: h.label, value: h.value })
+    }
+  }
+  return out.sort((a, b) => b.start.localeCompare(a.start))
 }
 
 // Zusatzzeile unter dem Zeitraum, z. B. "KW 44 · 26.10.–01.11."
-export function periodSubtitle(period: Period) {
+export function periodSubtitle(period: TodoPeriod, data?: AppData) {
+  if (period === 'deadline') {
+    const next = (data?.todos ?? [])
+      .filter((t) => t.period === 'deadline' && !t.done)
+      .map((t) => t.start)
+      .sort()[0]
+    return next
+      ? `Nächste Frist: ${new Date(`${next}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`
+      : 'Eigene Fristen mit Datum'
+  }
   const r = periodRange(period, 0)
   const d = (x: Date) => x.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
   if (period === 'day') {

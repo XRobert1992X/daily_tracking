@@ -8,16 +8,22 @@ import {
   pinnedPhotoIds,
 } from './backups'
 import type { SnapshotMeta, SnapshotReason } from './backups'
+import { dayKey } from './stats'
 import { periodStartKey } from './goals'
+import { DEFAULT_SLEEP_CFG } from './sleep'
 import type { AppData } from './goals'
 import { usePhotoApi } from './photos'
 import Diet from './screens/Diet'
 import Focus, { hasPomoRunning } from './screens/Focus'
+import Gratitude from './screens/Gratitude'
 import Habits from './screens/Habits'
 import Home from './screens/Home'
 import Meditation from './screens/Meditation'
 import Mood from './screens/Mood'
+import Notes from './screens/Notes'
+import { usePenalties } from './penalty'
 import Reading from './screens/Reading'
+import Sleep from './screens/Sleep'
 import Social from './screens/Social'
 import Todo from './screens/Todo'
 import Trading from './screens/Trading'
@@ -35,20 +41,26 @@ import type {
   DietEntry,
   FocusSession,
   Goal,
+  GratitudeEntry,
   Habit,
   HabitLog,
   MeditationSession,
   MoodEntry,
-  Period,
+  NoteEntry,
   ReadingLog,
   Route,
+  Settings,
+  SleepCfg,
+  SleepEntry,
   SocialEntry,
   TodoItem,
+  TodoPeriod,
   Topic,
   TradeEntry,
 } from './types'
 
 const TDEE_KEY = 'progress:diet-tdee'
+const SLEEP_CFG_KEY = 'progress:sleep-cfg'
 
 const byStart = (a: { startedAt: string }, b: { startedAt: string }) =>
   a.startedAt.localeCompare(b.startedAt)
@@ -75,6 +87,10 @@ export default function App() {
   const todos = useCollection<TodoItem>('todos')
   const diet = useCollection<DietEntry>('diet', byAt)
   const trades = useCollection<TradeEntry>('trades', byAt)
+  const gratitude = useCollection<GratitudeEntry>('gratitude', byAt)
+  const sleepEntries = useCollection<SleepEntry>('sleep')
+  const notes = useCollection<NoteEntry>('notes')
+  const penalties = usePenalties()
   const goals = useCollection<Goal>('goals')
   const photoApi = usePhotoApi()
   const [dietTdee, setDietTdee] = useState(() => {
@@ -85,6 +101,20 @@ export default function App() {
     localStorage.setItem(TDEE_KEY, String(n))
     setDietTdee(n)
   }
+  const [sleepCfg, setSleepCfg] = useState<SleepCfg>(() => {
+    try {
+      const c = JSON.parse(localStorage.getItem(SLEEP_CFG_KEY) ?? '')
+      if (typeof c?.wake === 'string' && typeof c?.bed === 'string') return c
+    } catch {
+      // Standardwerte
+    }
+    return DEFAULT_SLEEP_CFG
+  })
+  const changeSleepCfg = (c: SleepCfg) => {
+    localStorage.setItem(SLEEP_CFG_KEY, JSON.stringify(c))
+    setSleepCfg(c)
+  }
+  const settings: Settings = { dietTdee, sleepCfg }
 
   const stores: Record<
     StoreName,
@@ -101,6 +131,10 @@ export default function App() {
     todos,
     diet,
     trades,
+    gratitude,
+    sleep: sleepEntries,
+    notes,
+    penalties,
     goals,
   }
   const collect = () =>
@@ -114,7 +148,7 @@ export default function App() {
   const [lastExport, setLastExport] = useState(lastExportAt)
 
   const snapshotNow = async (reason: SnapshotReason) => {
-    setSnaps(await createSnapshot(collect(), photoApi.metas, dietTdee, reason))
+    setSnaps(await createSnapshot(collect(), photoApi.metas, settings, reason))
   }
 
   useEffect(() => {
@@ -138,6 +172,10 @@ export default function App() {
     todos.loaded &&
     diet.loaded &&
     trades.loaded &&
+    gratitude.loaded &&
+    sleepEntries.loaded &&
+    notes.loaded &&
+    penalties.loaded &&
     goals.loaded &&
     photoApi.loaded &&
     snapsLoaded
@@ -165,7 +203,9 @@ export default function App() {
     await snapshotNow('before-restore')
     for (const k of Object.keys(stores) as StoreName[]) stores[k].replaceAll(s.data[k] ?? [])
     photoApi.restoreIndex(s.photos)
-    changeTdee(s.dietTdee)
+    const restored = s.settings ?? { dietTdee: s.dietTdee ?? dietTdee, sleepCfg }
+    changeTdee(restored.dietTdee)
+    changeSleepCfg(restored.sleepCfg)
   }
 
   // Fotos, deren Eintrag gelöscht wurde (oder nie gespeichert), werden aufgeräumt
@@ -179,6 +219,9 @@ export default function App() {
     todos.items,
     diet.items,
     trades.items,
+    gratitude.items,
+    sleepEntries.items,
+    notes.items,
   ].flatMap((l) => l.map((x) => x.id))
   const ownersRef = useRef(owners)
   ownersRef.current = owners
@@ -208,7 +251,12 @@ export default function App() {
     todos: todos.items,
     diet: diet.items,
     trades: trades.items,
+    gratitude: gratitude.items,
+    sleep: sleepEntries.items,
+    notes: notes.items,
+    penalties: penalties.items,
     dietTdee,
+    sleepCfg,
   }
 
   const toggleTodo = (id: string) => {
@@ -235,12 +283,18 @@ export default function App() {
     })
   }
 
-  const addTodo = (title: string, period: Period, offset: 0 | 1, target?: number) =>
+  const addTodo = (
+    title: string,
+    period: TodoPeriod,
+    offset: 0 | 1,
+    target?: number,
+    due?: string,
+  ) =>
     todos.upsert({
       id: crypto.randomUUID(),
       title,
       period,
-      start: periodStartKey(period, offset),
+      start: period === 'deadline' ? (due ?? dayKey(new Date())) : periodStartKey(period, offset),
       done: false,
       target,
       count: target ? 0 : undefined,
@@ -249,7 +303,7 @@ export default function App() {
 
   const carryTodo = (id: string) => {
     const t = todos.items.find((x) => x.id === id)
-    if (t) todos.upsert({ ...t, start: periodStartKey(t.period) })
+    if (t && t.period !== 'deadline') todos.upsert({ ...t, start: periodStartKey(t.period) })
   }
 
   const goalProps = (topic: Topic) => ({
@@ -261,6 +315,26 @@ export default function App() {
   })
 
   switch (route) {
+    case 'notes':
+      return (
+        <Notes
+          notes={notes.items}
+          onSave={notes.upsert}
+          onDelete={notes.remove}
+          onBack={() => setRoute('home')}
+        />
+      )
+    case 'gratitude':
+      return <Gratitude {...goalProps('gratitude')} onSave={gratitude.upsert} onDelete={gratitude.remove} />
+    case 'sleep':
+      return (
+        <Sleep
+          {...goalProps('sleep')}
+          onCfg={changeSleepCfg}
+          onSave={sleepEntries.upsert}
+          onDelete={sleepEntries.remove}
+        />
+      )
     case 'diet':
       return (
         <Diet
@@ -333,16 +407,18 @@ export default function App() {
       onAddTodo={addTodo}
       onExport={async (withPhotos) => {
         const photos = withPhotos ? await photoApi.dumpAll() : []
-        if (await exportBackup(collect(), photos)) setLastExport(Date.now())
+        if (await exportBackup(collect(), photos, settings)) setLastExport(Date.now())
       }}
       onImport={async (file) => {
         try {
-          const { stores: parsed, photos } = await parseBackup(file)
+          const { stores: parsed, photos, settings: imported } = await parseBackup(file)
           await snapshotNow('before-import')
           let added = 0
           for (const k of Object.keys(parsed) as StoreName[]) {
             added += stores[k].merge(parsed[k] ?? [])
           }
+          if (imported.dietTdee) changeTdee(imported.dietTdee)
+          if (imported.sleepCfg) changeSleepCfg(imported.sleepCfg)
           const p = await photoApi.importAll(photos)
           return `${added} Einträge${p ? ` und ${p} Fotos` : ''} importiert`
         } catch {

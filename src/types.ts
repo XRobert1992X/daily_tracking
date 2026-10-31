@@ -80,8 +80,11 @@ export interface HabitLog {
 export interface MoodEntry {
   id: string
   at: string
+  // Stimmung 1–5
   mood: number
+  // Energie: neue Einträge 1–10 (energyScale 10), ältere Einträge 1–5
   energy: number
+  energyScale?: 10
   note?: string
 }
 
@@ -95,7 +98,43 @@ export interface FocusSession {
   completed: boolean
 }
 
-export type Topic = 'meditation' | 'reading' | 'habits' | 'mood' | 'focus' | 'social' | 'diet' | 'trading'
+export type Topic =
+  | 'meditation'
+  | 'reading'
+  | 'habits'
+  | 'mood'
+  | 'focus'
+  | 'social'
+  | 'diet'
+  | 'trading'
+  | 'gratitude'
+  | 'sleep'
+
+export interface GratitudeEntry {
+  id: string
+  at: string
+  items: string[]
+}
+
+// Eine Nacht, zugeordnet dem Tag des Aufstehens (day). bed und wake sind ISO-Zeitpunkte
+export interface SleepEntry {
+  id: string
+  day: string
+  bed?: string
+  wake?: string
+  quality?: number
+  note?: string
+}
+
+export interface SleepCfg {
+  wake: string
+  bed: string
+}
+
+export interface Settings {
+  dietTdee: number
+  sleepCfg: SleepCfg
+}
 
 export interface DietEntry {
   id: string
@@ -135,7 +174,7 @@ export const SOCIAL_KINDS: { id: SocialKind; label: string; short: string }[] = 
 ]
 
 export type Period = 'day' | 'week' | 'month' | 'year'
-export type Route = 'home' | 'todo' | Topic
+export type Route = 'home' | 'todo' | 'notes' | Topic
 
 export interface Goal {
   id: string
@@ -146,14 +185,47 @@ export interface Goal {
   refId?: string
   // Gesetzt: gezählt werden Tage, an denen der Tageswert mindestens dayMin erreicht
   dayMin?: number
+  // Optional: Strafe, wenn das Ziel in einem abgelaufenen Zeitraum verfehlt wurde
+  penalty?: { text: string; amount?: number }
   createdAt: string
+}
+
+// Erledigte Strafe für einen verfehlten Zeitraum (id = `${goalId}:${start}`)
+export interface PenaltyLog {
+  id: string
+  goalId: string
+  start: string
+  doneAt: string
+}
+
+export type TodoPeriod = Period | 'deadline'
+
+// Ein Strich der Zeichenfläche. Koordinaten in 1000er-Breite, pts = x, y, Druck im Dreierpack
+export interface Stroke {
+  tool: 'pen' | 'marker'
+  color: string
+  width: number
+  pts: number[]
+}
+
+export type NoteBlock =
+  | { id: string; type: 'text'; text: string }
+  | { id: string; type: 'ink'; h: number; strokes: Stroke[] }
+  | { id: string; type: 'image'; photoId: string }
+
+export interface NoteEntry {
+  id: string
+  at: string
+  updatedAt: string
+  title: string
+  blocks: NoteBlock[]
 }
 
 export interface TodoItem {
   id: string
   title: string
-  period: Period
-  // erster Tag des Zeitraums (Tag, Montag, Monatserster, 1. Januar)
+  period: TodoPeriod
+  // erster Tag des Zeitraums (Tag, Montag, Monatserster, 1. Januar); bei Deadlines das Fälligkeitsdatum
   start: string
   done: boolean
   doneAt?: string

@@ -5,21 +5,21 @@ import { Header, Seg, Stat } from '../components/ui'
 import { PERIOD_NAMES } from '../goals'
 import type { AppData } from '../goals'
 import { addDays, dayKey, lastDays, shortDate, weekKeys } from '../stats'
-import type { Goal, Period, Topic } from '../types'
+import type { Goal, TodoPeriod, Topic } from '../types'
 
 interface Props {
   data: AppData
   goals: Goal[]
   onToggle: (id: string) => void
   onBump: (id: string, delta: 1 | -1) => void
-  onAdd: (title: string, period: Period, offset: 0 | 1, target?: number) => void
+  onAdd: (title: string, period: TodoPeriod, offset: 0 | 1, target?: number, due?: string) => void
   onDelete: (id: string) => void
   onCarry: (id: string) => void
   onOpenTopic: (t: Topic) => void
   onBack: () => void
 }
 
-type Tab = Period | 'archiv'
+type Tab = TodoPeriod | 'archiv'
 
 export default function Todo(props: Props) {
   const { data, goals, onBack } = props
@@ -36,6 +36,7 @@ export default function Todo(props: Props) {
           { id: 'week', label: PERIOD_NAMES.week.short },
           { id: 'month', label: PERIOD_NAMES.month.short },
           { id: 'year', label: PERIOD_NAMES.year.short },
+          { id: 'deadline', label: PERIOD_NAMES.deadline.short },
           { id: 'archiv', label: 'Archiv' },
         ]}
       />
@@ -150,9 +151,9 @@ function Archive({ data, onToggle }: { data: AppData; onToggle: (id: string) => 
 }
 
 // Letzter Tag eines Zeitraums, der bei start beginnt
-function endOf(period: Period, start: string) {
+function endOf(period: TodoPeriod, start: string) {
   const s = new Date(`${start}T12:00:00`)
-  if (period === 'day') return start
+  if (period === 'day' || period === 'deadline') return start
   if (period === 'week') return dayKey(addDays(s, 6))
   if (period === 'month') return dayKey(new Date(s.getFullYear(), s.getMonth() + 1, 0))
   return dayKey(new Date(s.getFullYear(), 11, 31))

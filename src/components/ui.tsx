@@ -144,6 +144,37 @@ export function MarkerBar({ value, target }: { value: number; target: number }) 
   )
 }
 
+// Pegelanzeige: Balken in aufsteigender Höhe zum Antippen (nochmal tippen = löschen)
+export function Meter({
+  value,
+  max,
+  onChange,
+  compact,
+}: {
+  value: number
+  max: number
+  onChange: (n: number) => void
+  compact?: boolean
+}) {
+  return (
+    <div className={`meter ${compact ? 'compact' : ''}`} role="group">
+      {Array.from({ length: max }, (_, i) => {
+        const n = i + 1
+        const h = (compact ? 18 : 22) + (i / Math.max(1, max - 1)) * (compact ? 16 : 30)
+        return (
+          <button
+            key={n}
+            className={`mb ${n <= value ? 'on' : ''} ${n === value ? 'cur' : ''}`}
+            style={{ height: h }}
+            aria-label={`${n} von ${max}`}
+            onClick={() => onChange(value === n ? 0 : n)}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 export function useToggle(initial = false) {
   const [on, setOn] = useState(initial)
   return [on, () => setOn((v) => !v), setOn] as const
@@ -176,7 +207,30 @@ export function DayNav({ day, onChange }: { day: string; onChange: (d: string) =
   )
 }
 
-// Fortschrittsring mit Zahl in der Mitte
+// Kleiner Fortschrittsring für Zähl-ToDos: Zahl in der Mitte, bei Erreichen grün mit Haken
+export function MiniRing({ value, max, done }: { value: number; max: number; done?: boolean }) {
+  const r = 15
+  const c = 2 * Math.PI * r
+  return (
+    <div className={`miniring ${done ? 'done' : ''}`} aria-label={`${value} von ${max}`}>
+      <svg viewBox="0 0 38 38" width={42} height={42}>
+        <circle cx="19" cy="19" r={r} className="mr-bg" />
+        <circle
+          cx="19"
+          cy="19"
+          r={r}
+          className="mr-fg"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - Math.min(1, value / max))}
+        />
+      </svg>
+      <span>{done ? '✓' : value}</span>
+      {!done && <small>/{max}</small>}
+    </div>
+  )
+}
+
+// Ring mit Zahl in der Mitte
 export function Ring({
   done,
   total,

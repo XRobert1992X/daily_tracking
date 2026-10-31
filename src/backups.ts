@@ -2,6 +2,8 @@ import { del, get, set } from 'idb-keyval'
 import type { PhotoMeta } from './photos'
 import type { Row, StoreName } from './storage'
 
+import type { Settings } from './types'
+
 export type SnapshotReason = 'auto' | 'manual' | 'before-import' | 'before-restore'
 
 export interface SnapshotMeta {
@@ -15,7 +17,9 @@ export interface SnapshotMeta {
 export interface SnapshotData {
   data: Record<StoreName, Row[]>
   photos: PhotoMeta[]
-  dietTdee: number
+  settings?: Settings
+  // alte Sicherungen enthielten nur den Grundverbrauch
+  dietTdee?: number
 }
 
 export const REASON_LABEL: Record<SnapshotReason, string> = {
@@ -42,7 +46,7 @@ export function pinnedPhotoIds(list: SnapshotMeta[]) {
 export async function createSnapshot(
   data: Record<StoreName, Row[]>,
   photos: PhotoMeta[],
-  dietTdee: number,
+  settings: Settings,
   reason: SnapshotReason,
 ) {
   const id = crypto.randomUUID()
@@ -53,7 +57,7 @@ export async function createSnapshot(
     entries: Object.values(data).reduce((a, l) => a + l.length, 0),
     photoIds: photos.map((p) => p.id),
   }
-  await set(dataKey(id), { data, photos, dietTdee } satisfies SnapshotData)
+  await set(dataKey(id), { data, photos, settings } satisfies SnapshotData)
 
   let list = [meta, ...(await listSnapshots())]
   const keep = new Set<string>()

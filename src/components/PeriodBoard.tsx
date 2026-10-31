@@ -10,21 +10,37 @@ import {
   periodSubtitle,
 } from '../goals'
 import type { AppData } from '../goals'
-import type { Goal, Period, Topic } from '../types'
+import type { Goal, Topic, TodoPeriod } from '../types'
 import { RowPhotos } from './Attach'
-import { ProgressBar, Ring, WeekDots } from './ui'
+import { ProgressBar, Ring, MiniRing, WeekDots } from './ui'
+import { addDays, dayKey, todayKey } from '../stats'
 
 interface Props {
-  period: Period
+  period: TodoPeriod
   data: AppData
   goals: Goal[]
   editable?: boolean
   onToggle: (id: string) => void
   onBump: (id: string, delta: 1 | -1) => void
-  onAdd: (title: string, period: Period, offset: 0 | 1, target?: number) => void
+  onAdd: (title: string, period: TodoPeriod, offset: 0 | 1, target?: number, due?: string) => void
   onOpenTopic?: (t: Topic) => void
   onDelete?: (id: string) => void
   onCarry?: (id: string) => void
+}
+
+// "heute", "morgen", "in 5 Tagen" bzw. "überfällig seit 2 Tagen"
+function dueLabel(due: string) {
+  const diff = Math.round(
+    (new Date(`${due}T12:00:00`).getTime() - new Date(`${todayKey()}T12:00:00`).getTime()) / 86_400_000,
+  )
+  const date = new Date(`${due}T12:00:00`).toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+  })
+  if (diff < 0) return { text: `überfällig seit ${-diff} ${-diff === 1 ? 'Tag' : 'Tagen'} (${date})`, tone: 'late' }
+  if (diff === 0) return { text: 'heute fällig', tone: 'soon' }
+  if (diff === 1) return { text: `morgen (${date})`, tone: 'soon' }
+  return { text: `in ${diff} Tagen (${date})`, tone: diff <= 3 ? 'soon' : 'when' }
 }
 
 export default function PeriodBoard({
@@ -43,20 +59,27 @@ export default function PeriodBoard({
   const [offset, setOffset] = useState<0 | 1>(0)
   const [type, setType] = useState<'check' | 'count'>('check')
   const [targetText, setTargetText] = useState('4')
+  const [due, setDue] = useState(() => dayKey(addDays(new Date(), 1)))
   const targetNum = parseInt(targetText, 10)
+  const isDl = period === 'deadline'
   const countValid = type === 'check' || (targetNum >= 2 && targetNum <= 999)
 
-  const cur = periodStartKey(period)
+  const cur = isDl ? todayKey() : periodStartKey(period)
   const todos = data.todos.filter((t) => t.period === period)
-  const current = todos.filter((t) => t.start === cur)
-  const overdue = todos.filter((t) => t.start < cur && !t.done)
-  const planned = todos.filter((t) => t.start > cur)
-  const evals = goals
-    .filter((g) => g.period === period)
-    .map((g) => ({ g, ev: evaluateGoal(g, data) }))
+  const current = isDl ? [] : todos.filter((t) => t.start === cur)
+  const overdue = isDl ? [] : todos.filter((t) => t.start < cur && !t.done)
+  const planned = isDl ? [] : todos.filter((t) => t.start > cur)
+  const evals = isDl
+    ? []
+    : goals.filter((g) => g.period === period).map((g) => ({ g, ev: evaluateGoal(g, data) }))
 
-  const open = [...overdue, ...current.filter((t) => !t.done)]
-  const done = current.filter((t) => t.done)
+  // Deadlines: alle offenen nach Datum, dazu die in den letzten 7 Tagen erledigten
+  const dlOpen = todos.filter((t) => !t.done).sort((a, b) => a.start.localeCompare(b.start))
+  const dlDone = todos.filter(
+    (t) => t.done && t.doneAt && Date.now() - Date.parse(t.doneAt) < 7 * 86_400_000,
+  )
+  const open = isDl ? dlOpen : [...overdue, ...current.filter((t) => !t.done)]
+  const done = isDl ? dlDone : current.filter((t) => t.done)
   const total = open.length + done.length + evals.length
   const doneCount = done.length + evals.filter((e) => e.ev.status === 'done').length
 
@@ -70,20 +93,11 @@ export default function PeriodBoard({
   const row = (t: (typeof todos)[number], late: boolean) => {
     const isCount = (t.target ?? 0) > 1
     const count = t.count ?? 0
+    const target = t.target ?? 1
     return (
-      <li key={t.id} className={`todo ${t.done ? 'done' : ''}`}>
+      <li key={t.id} className={`todo ${isCount ? 'counting' : ''} ${t.done ? 'done' : ''}`}>
         {isCount ? (
-          <button
-            className={`todo-check count ${count > 0 && !t.done ? 'partial' : ''}`}
-            aria-label={`Hochzählen (${count} von ${t.target})`}
-            disabled={t.done}
-            onClick={() => {
-              navigator.vibrate?.(12)
-              onBump(t.id, 1)
-            }}
-          >
-            {t.done ? '✓' : count > 0 ? count : '+'}
-          </button>
+          <MiniRing value={count} max={target} done={t.done} />
         ) : (
           <button
             className="todo-check"
@@ -96,24 +110,53 @@ export default function PeriodBoard({
             {t.done ? '✓' : ''}
           </button>
         )}
-        <span className="todo-title">
-          {t.title}
-          {isCount && (
-            <em className="when">
-              {count}/{t.target}
-            </em>
-          )}
-          {late && <em className="late">überfällig</em>}
-          {isCount && (
-            <span className="bar mini">
-              <i style={{ width: `${Math.min(100, (count / (t.target ?? 1)) * 100)}%` }} />
-            </span>
-          )}
-        </span>
-        {isCount && count > 0 && (
-          <button className="x" aria-label="Eins zurück" onClick={() => onBump(t.id, -1)}>
-            −
-          </button>
+        <div className="todo-main">
+          <span className="todo-title">
+            {t.title}
+            {isDl && !t.done
+              ? (() => {
+                  const d = dueLabel(t.start)
+                  return <em className={d.tone}>{d.text}</em>
+                })()
+              : late && <em className="late">überfällig</em>}
+          </span>
+          {isCount &&
+            (target <= 12 ? (
+              <div className="segs" aria-hidden>
+                {Array.from({ length: target }, (_, i) => (
+                  <i key={i} className={i < count ? 'on' : ''} />
+                ))}
+              </div>
+            ) : (
+              <span className="bar mini">
+                <i style={{ width: `${Math.min(100, (count / target) * 100)}%` }} />
+              </span>
+            ))}
+        </div>
+        {isCount && (
+          <div className="count-actions">
+            {count > 0 && (
+              <button className="step minus" aria-label="Eins zurück" onClick={() => onBump(t.id, -1)}>
+                −
+              </button>
+            )}
+            {t.done ? (
+              <span className="done-badge" aria-label="Erledigt">
+                ✓
+              </span>
+            ) : (
+              <button
+                className="step plus"
+                aria-label={`Hochzählen (${count} von ${target})`}
+                onClick={() => {
+                  navigator.vibrate?.(12)
+                  onBump(t.id, 1)
+                }}
+              >
+                +
+              </button>
+            )}
+          </div>
         )}
         {editable && <RowPhotos ownerId={t.id} />}
         {editable && late && onCarry && (
@@ -140,7 +183,7 @@ export default function PeriodBoard({
         <Ring done={doneCount} total={total} />
         <div className="board-text">
           <b>{PERIOD_NAMES[period].now}</b>
-          <small className="muted">{periodSubtitle(period)}</small>
+          <small className="muted">{periodSubtitle(period, data)}</small>
           <span className={`board-msg ${total > 0 && doneCount === total ? 'ok' : ''}`}>
             {message}
           </span>
@@ -152,8 +195,14 @@ export default function PeriodBoard({
           className="addform"
           onSubmit={(e) => {
             e.preventDefault()
-            if (text.trim() && countValid) {
-              onAdd(text.trim(), period, offset, type === 'count' ? targetNum : undefined)
+            if (text.trim() && countValid && (!isDl || due)) {
+              onAdd(
+                text.trim(),
+                period,
+                offset,
+                type === 'count' ? targetNum : undefined,
+                isDl ? due : undefined,
+              )
               setText('')
             }
           }}
@@ -206,15 +255,28 @@ export default function PeriodBoard({
                 <span className="muted">×</span>
               </label>
             )}
-            {editable && (
-              <select
-                aria-label="Zeitraum"
-                value={offset}
-                onChange={(e) => setOffset(e.target.value === '1' ? 1 : 0)}
-              >
-                <option value="0">{PERIOD_NAMES[period].now}</option>
-                <option value="1">{PERIOD_NAMES[period].next}</option>
-              </select>
+            {isDl ? (
+              <label className="due-in">
+                <span className="muted">Bis</span>
+                <input
+                  type="date"
+                  value={due}
+                  min={todayKey()}
+                  aria-label="Deadline"
+                  onChange={(e) => setDue(e.target.value)}
+                />
+              </label>
+            ) : (
+              editable && (
+                <select
+                  aria-label="Zeitraum"
+                  value={offset}
+                  onChange={(e) => setOffset(e.target.value === '1' ? 1 : 0)}
+                >
+                  <option value="0">{PERIOD_NAMES[period].now}</option>
+                  <option value="1">{PERIOD_NAMES[period].next}</option>
+                </select>
+              )
             )}
           </div>
         </form>
@@ -223,9 +285,18 @@ export default function PeriodBoard({
           <p className="hint">Noch keine ToDos. Schreibe auf, was du in diesem Zeitraum schaffen willst.</p>
         )}
         <ul className="todos">
-          {overdue.map((t) => row(t, true))}
-          {current.filter((t) => !t.done).map((t) => row(t, false))}
-          {done.map((t) => row(t, false))}
+          {isDl ? (
+            <>
+              {dlOpen.map((t) => row(t, false))}
+              {dlDone.map((t) => row(t, false))}
+            </>
+          ) : (
+            <>
+              {overdue.map((t) => row(t, true))}
+              {current.filter((t) => !t.done).map((t) => row(t, false))}
+              {done.map((t) => row(t, false))}
+            </>
+          )}
         </ul>
       </section>
 

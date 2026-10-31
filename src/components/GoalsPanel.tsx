@@ -3,6 +3,7 @@ import {
   METRICS,
   PERIODS,
   STATUS_LABEL,
+  duePenalties,
   evaluateGoal,
   fmtNum,
   goalTitle,
@@ -10,6 +11,7 @@ import {
 } from '../goals'
 import type { AppData } from '../goals'
 import type { Goal, Period, Topic } from '../types'
+import { PenaltyList } from './PenaltyList'
 import { ProgressBar, WeekDots } from './ui'
 
 interface Props {
@@ -30,6 +32,7 @@ export function GoalCard({
   onRemove?: (id: string) => void
 }) {
   const ev = evaluateGoal(goal, data)
+  const due = duePenalties([goal], data, data.penalties)
   const period = PERIODS.find((p) => p.id === goal.period)
   const unit = ev.streak === 1 ? period?.singular : period?.plural
   return (
@@ -58,7 +61,7 @@ export function GoalCard({
       {ev.weekDays && <WeekDots days={ev.weekDays} />}
       {ev.history.length > 1 && (
         <div className="hist" aria-label="Letzte Zeiträume">
-          {ev.history.map((h, i) => (
+          {ev.history.slice(-8).map((h, i) => (
             <div key={i} className={`hcol ${h.hit ? 'hit' : ''} ${h.current ? 'cur' : ''}`}>
               <div className="hbar">
                 <i style={{ height: `${Math.max(0, Math.min(100, (h.value / ev.target) * 100))}%` }} />
@@ -72,6 +75,15 @@ export function GoalCard({
         {ev.streak > 0 ? `🔥 ${ev.streak} ${unit} in Folge` : 'Noch keine Serie'}
         {ev.rate !== null && ` · ${Math.round(ev.rate * 100)} % der Zeiträume erreicht`}
       </p>
+      {goal.penalty && (
+        <div className="penalty-box">
+          <p className="penalty-line">
+            <span className="muted">Strafe bei Verfehlen:</span> <b>{goal.penalty.text}</b>
+            {goal.penalty.amount ? ` · ${goal.penalty.amount.toLocaleString('de-DE')} €` : ''}
+          </p>
+          {due.length > 0 && <PenaltyList due={due} data={data} />}
+        </div>
+      )}
     </section>
   )
 }
@@ -88,6 +100,8 @@ export default function GoalsPanel({ topic, data, goals, onUpsert, onRemove }: P
   const [target, setTarget] = useState(DEFAULT_TARGET.week)
   const [mode, setMode] = useState<'sum' | 'days'>('sum')
   const [dayMinText, setDayMinText] = useState('20')
+  const [penaltyText, setPenaltyText] = useState('')
+  const [penaltyAmount, setPenaltyAmount] = useState('')
 
   const def = metrics.find((m) => m.id === metric) ?? metrics[0]
   // "Tage mit Mindestwert" gibt es nur für Summen-Werte und Zeiträume über einen Tag
@@ -99,6 +113,7 @@ export default function GoalsPanel({ topic, data, goals, onUpsert, onRemove }: P
   const valid = value > 0 && (!days || dayMin > 0) && (!needsHabit || habitId !== '')
 
   const save = () => {
+    const amount = parseFloat(penaltyAmount.replace(',', '.'))
     onUpsert({
       id: crypto.randomUUID(),
       topic,
@@ -107,8 +122,13 @@ export default function GoalsPanel({ topic, data, goals, onUpsert, onRemove }: P
       target: value,
       refId: needsHabit ? habitId : undefined,
       dayMin: days ? dayMin : undefined,
+      penalty: penaltyText.trim()
+        ? { text: penaltyText.trim(), amount: amount > 0 ? amount : undefined }
+        : undefined,
       createdAt: new Date().toISOString(),
     })
+    setPenaltyText('')
+    setPenaltyAmount('')
     setAdding(false)
   }
 
@@ -224,6 +244,28 @@ export default function GoalsPanel({ topic, data, goals, onUpsert, onRemove }: P
               onFocus={(e) => e.target.select()}
             />
           </label>
+          <label className="field">
+            <span className="muted">Strafe bei Verfehlen (optional)</span>
+            <input
+              type="text"
+              value={penaltyText}
+              placeholder="z. B. 20 Liegestütze"
+              onChange={(e) => setPenaltyText(e.target.value)}
+            />
+          </label>
+          {penaltyText.trim() && (
+            <label className="field">
+              <span className="muted">Betrag in € (optional, z. B. für die Spardose)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={penaltyAmount}
+                onChange={(e) => setPenaltyAmount(e.target.value)}
+              />
+            </label>
+          )}
           <div className="row">
             <button className="ghost" onClick={() => setAdding(false)}>
               Abbrechen

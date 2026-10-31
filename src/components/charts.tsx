@@ -79,21 +79,24 @@ export interface Series {
 export function LineChart({
   labels,
   series,
+  max = 5,
 }: {
   labels: string[]
   series: Series[]
+  max?: number
 }) {
   const W = 320
   const H = 150
   const pad = 22
   const n = labels.length
   const x = (i: number) => pad + (i * (W - pad * 2)) / Math.max(1, n - 1)
-  const y = (v: number) => H - pad - ((v - 1) / 4) * (H - pad * 2)
+  const y = (v: number) => H - pad - ((v - 1) / (max - 1)) * (H - pad * 2)
+  const ticks = max === 10 ? [2, 4, 6, 8, 10] : [1, 2, 3, 4, 5]
 
   return (
     <>
       <svg viewBox={`0 0 ${W} ${H}`} className="chart">
-        {[1, 2, 3, 4, 5].map((v) => (
+        {ticks.map((v) => (
           <g key={v}>
             <line x1={pad} x2={W - pad} y1={y(v)} y2={y(v)} className="axis" />
             <text x={pad - 6} y={y(v) + 3} className="lbl end">
@@ -187,10 +190,12 @@ export function TargetBars({
   data,
   target,
   signed,
+  fmt = fmtShort,
 }: {
   data: { key: string; value: number; label: string }[]
   target?: number
   signed?: boolean
+  fmt?: (v: number) => string
 }) {
   const W = 320
   const H = 180
@@ -237,7 +242,7 @@ export function TargetBars({
                 y={d.value < 0 ? yv + 11 : yv - 4}
                 className="val"
               >
-                {fmtShort(d.value)}
+                {fmt(d.value)}
               </text>
             )}
             {i % labelStep === 0 && (
@@ -252,7 +257,7 @@ export function TargetBars({
         <g>
           <line x1={8} x2={W - 8} y1={y(target)} y2={y(target)} className="target-line" />
           <text x={W - 8} y={y(target) - 4} className="lbl end target-lbl">
-            Ziel {fmtShort(target)}
+            Ziel {fmt(target)}
           </text>
         </g>
       )}

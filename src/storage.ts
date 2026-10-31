@@ -1,7 +1,7 @@
 import { get, set } from 'idb-keyval'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ExportPhoto } from './photos'
-import type { ActiveSession } from './types'
+import type { ActiveSession, Settings } from './types'
 
 export const KEYS = {
   meditation: 'meditation-sessions',
@@ -16,6 +16,10 @@ export const KEYS = {
   todos: 'todos',
   diet: 'diet',
   trades: 'trades',
+  gratitude: 'gratitude',
+  sleep: 'sleep',
+  penalties: 'penalties',
+  notes: 'notes',
 } as const
 
 export type StoreName = keyof typeof KEYS
@@ -130,8 +134,9 @@ export function lastExportAt(): number | null {
 export async function exportBackup(
   data: Record<StoreName, Row[]>,
   photos: ExportPhoto[],
+  settings: Settings,
 ): Promise<boolean> {
-  const json = JSON.stringify({ version: 3, ...data, photos })
+  const json = JSON.stringify({ version: 4, ...data, photos, settings })
   const file = new File([json], `progress-backup-${new Date().toLocaleDateString('sv-SE')}.json`, {
     type: 'application/json',
   })
@@ -156,7 +161,7 @@ export async function exportBackup(
 
 export async function parseBackup(
   file: File,
-): Promise<{ stores: BackupData; photos: ExportPhoto[] }> {
+): Promise<{ stores: BackupData; photos: ExportPhoto[]; settings: Partial<Settings> }> {
   const data = JSON.parse(await file.text())
   const stores: BackupData = {}
   let found = false
@@ -177,5 +182,11 @@ export async function parseBackup(
           typeof p?.data === 'string',
       )
     : []
-  return { stores, photos }
+  const s = data?.settings
+  const settings: Partial<Settings> = {}
+  if (typeof s?.dietTdee === 'number' && s.dietTdee >= 800) settings.dietTdee = s.dietTdee
+  if (typeof s?.sleepCfg?.wake === 'string' && typeof s?.sleepCfg?.bed === 'string') {
+    settings.sleepCfg = { wake: s.sleepCfg.wake, bed: s.sleepCfg.bed }
+  }
+  return { stores, photos, settings }
 }

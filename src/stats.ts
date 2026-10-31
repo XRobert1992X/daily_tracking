@@ -27,6 +27,13 @@ export function lastDays(n: number) {
   return Array.from({ length: n }, (_, i) => dayKey(addDays(today, i - (n - 1))))
 }
 
+// alle Tage des aktuellen Monats
+export function monthKeys() {
+  const now = new Date()
+  const n = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  return Array.from({ length: n }, (_, i) => dayKey(new Date(now.getFullYear(), now.getMonth(), i + 1)))
+}
+
 export function shortDate(key: string) {
   return new Date(`${key}T12:00:00`).toLocaleDateString('de-DE', {
     day: '2-digit',
@@ -96,13 +103,16 @@ export function habitStreak(h: Habit, byDay: Map<string, number>) {
   return { n: dayStreak(done), unit: 'Tage' }
 }
 
+// Energie immer auf der 10er-Skala; ältere Einträge (1–5) werden verdoppelt
+export const energy10 = (e: MoodEntry) => (e.energyScale === 10 ? e.energy : e.energy * 2)
+
 export function dailyMood(entries: MoodEntry[]) {
   const sums = new Map<string, { mood: number; energy: number; n: number }>()
   for (const e of entries) {
     const k = dayKey(new Date(e.at))
     const s = sums.get(k) ?? { mood: 0, energy: 0, n: 0 }
     s.mood += e.mood
-    s.energy += e.energy
+    s.energy += energy10(e)
     s.n++
     sums.set(k, s)
   }

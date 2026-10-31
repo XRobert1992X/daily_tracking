@@ -21,7 +21,7 @@ const MAX_SIDE = 1600
 interface PhotoApi {
   metas: PhotoMeta[]
   loaded: boolean
-  add: (ownerId: string, files: File[]) => Promise<void>
+  add: (ownerId: string, files: File[]) => Promise<string[]>
   remove: (id: string) => void
   cleanup: (validOwners: Set<string>) => void
   url: (id: string) => Promise<string | null>
@@ -37,7 +37,7 @@ const noop = async () => {}
 const PhotoContext = createContext<PhotoApi>({
   metas: [],
   loaded: true,
-  add: noop,
+  add: async () => [],
   remove: () => {},
   cleanup: () => {},
   url: async () => null,
@@ -133,6 +133,7 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
           added.push({ id, ownerId, createdAt: new Date().toISOString() })
         }
         commit([...ref.current, ...added])
+        return added.map((m) => m.id)
       },
       remove(id) {
         dropBlob(id)
