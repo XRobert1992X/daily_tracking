@@ -65,7 +65,7 @@ export default function TimerScreen({
 
   useEffect(() => {
     if (Date.now() < endAt) {
-      scheduleEndAt(endAt, strikes, { startBowl: Date.now() - startedAt < 3000, title })
+      scheduleEndAt(endAt, strikes, { title })
     }
     const tick = () => {
       const t = Date.now()

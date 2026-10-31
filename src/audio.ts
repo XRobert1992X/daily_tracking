@@ -17,7 +17,6 @@ let fallbackTimer: ReturnType<typeof setTimeout> | undefined
 let plan: { endAtMs: number; strikes: number; opts: PlanOpts } | null = null
 
 interface PlanOpts {
-  startBowl?: boolean
   title?: string
 }
 
@@ -151,7 +150,6 @@ export function scheduleEndAt(endAtMs: number, strikes: number, opts: PlanOpts =
 
   const total = delay + (strikes - 1) * STRIKE_GAP + STRIKE_LEN
   const { buf, pcm } = wavBuffer(total)
-  if (opts.startBowl) addStrike(pcm, 0, 0.35)
   for (let i = 0; i < strikes; i++) addStrike(pcm, delay + i * STRIKE_GAP, 0.8)
   el.src = setSource(buf)
   gongAtSec = delay
