@@ -1,130 +1,120 @@
 import { useEffect, useState } from 'react'
+import { unlockAudio } from './audio'
+import { clearActive, loadActive, useSessions } from './storage'
+import DoneScreen from './screens/Done'
+import Home from './screens/Home'
+import Meditation from './screens/Meditation'
+import type { Preset } from './screens/Meditation'
+import SessionScreen from './screens/Session'
+import {
+  DEFAULT_MINUTES,
+  DEFAULT_TYPE,
+  MEDITATION_TYPES,
+} from './types'
+import type { ActiveSession, FinishedSession } from './types'
 
-const STORAGE_KEY = 'progress:checkins'
+type Phase =
+  | { name: 'home' }
+  | { name: 'meditation'; preset?: Preset }
+  | { name: 'session'; active: ActiveSession }
+  | { name: 'done'; result: FinishedSession }
 
-function loadCheckins(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
-  } catch {
-    return []
+// Start-Link: ?start=meditation&type=atem-fokus&min=15&auto=1
+function initialPhase(): Phase {
+  const existing = loadActive()
+  if (existing) return { name: 'session', active: existing }
+
+  const q = new URLSearchParams(location.search)
+  if (q.get('start') !== 'meditation') return { name: 'home' }
+
+  const type = q.get('type') ?? DEFAULT_TYPE
+  const min = parseInt(q.get('min') ?? '', 10)
+  const preset: Preset = {
+    type: MEDITATION_TYPES.some((t) => t.id === type) ? type : DEFAULT_TYPE,
+    plannedMin: min >= 1 && min <= 240 ? min : DEFAULT_MINUTES,
   }
-}
-
-function dayKey(d: Date) {
-  return d.toLocaleDateString('sv-SE')
-}
-
-function streak(days: string[]) {
-  const set = new Set(days)
-  let n = 0
-  const d = new Date()
-  if (!set.has(dayKey(d))) d.setDate(d.getDate() - 1)
-  while (set.has(dayKey(d))) {
-    n++
-    d.setDate(d.getDate() - 1)
-  }
-  return n
-}
-
-function useOnline() {
-  const [online, setOnline] = useState(navigator.onLine)
-  useEffect(() => {
-    const up = () => setOnline(true)
-    const down = () => setOnline(false)
-    window.addEventListener('online', up)
-    window.addEventListener('offline', down)
-    return () => {
-      window.removeEventListener('online', up)
-      window.removeEventListener('offline', down)
+  if (q.get('auto') === '1') {
+    return {
+      name: 'session',
+      active: { startedAt: Date.now(), plannedMin: preset.plannedMin, type: preset.type, interruptions: 0 },
     }
-  }, [])
-  return online
+  }
+  return { name: 'meditation', preset }
 }
 
 export default function App() {
-  const [days, setDays] = useState(loadCheckins)
-  const online = useOnline()
-  const today = dayKey(new Date())
-  const done = days.includes(today)
-  const standalone =
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  const { sessions, add, remove, merge } = useSessions()
+  const [phase, setPhase] = useState<Phase>(initialPhase)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(days))
-  }, [days])
+    if (location.search) history.replaceState(null, '', location.pathname)
+  }, [])
 
-  const toggle = () =>
-    setDays((prev) =>
-      prev.includes(today) ? prev.filter((d) => d !== today) : [...prev, today],
+  // Der erste Tipp schaltet den Ton frei (iOS verlangt eine Nutzergeste)
+  useEffect(() => {
+    const unlock = () => unlockAudio()
+    window.addEventListener('pointerdown', unlock, { once: true })
+    return () => window.removeEventListener('pointerdown', unlock)
+  }, [])
+
+  if (phase.name === 'session') {
+    return (
+      <SessionScreen
+        active={phase.active}
+        onFinish={(result) => {
+          clearActive()
+          setPhase({ name: 'done', result })
+        }}
+        onCancel={() => {
+          clearActive()
+          setPhase({ name: 'meditation' })
+        }}
+      />
     )
+  }
 
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - (6 - i))
-    return { key: dayKey(d), label: d.toLocaleDateString('de-DE', { weekday: 'narrow' }) }
-  })
+  if (phase.name === 'done') {
+    const r = phase.result
+    return (
+      <DoneScreen
+        result={r}
+        onSave={(interruptions) => {
+          add({
+            id: crypto.randomUUID(),
+            startedAt: new Date(r.startedAt).toISOString(),
+            plannedMin: r.plannedMin,
+            actualSec: r.actualSec,
+            type: r.type,
+            interruptions,
+            completed: r.completed,
+          })
+          setPhase({ name: 'meditation' })
+        }}
+        onDiscard={() => setPhase({ name: 'meditation' })}
+      />
+    )
+  }
+
+  if (phase.name === 'meditation') {
+    return (
+      <Meditation
+        sessions={sessions}
+        preset={phase.preset}
+        onBack={() => setPhase({ name: 'home' })}
+        onDelete={remove}
+        onImport={merge}
+        onStart={(p) => {
+          unlockAudio()
+          setPhase({
+            name: 'session',
+            active: { startedAt: Date.now(), plannedMin: p.plannedMin, type: p.type, interruptions: 0 },
+          })
+        }}
+      />
+    )
+  }
 
   return (
-    <main className="app">
-      <header className="header">
-        <div>
-          <p className="muted">
-            {new Date().toLocaleDateString('de-DE', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
-          </p>
-          <h1>Progress</h1>
-        </div>
-        <span className={`pill ${online ? 'on' : 'off'}`}>
-          <i /> {online ? 'Online' : 'Offline'}
-        </span>
-      </header>
-
-      <section className="card hero">
-        <p className="muted">Aktuelle Serie</p>
-        <div className="streak">
-          {streak(days)}
-          <small> Tage</small>
-        </div>
-        <button className={`cta ${done ? 'done' : ''}`} onClick={toggle}>
-          {done ? '✓ Heute erledigt' : 'Heute einchecken'}
-        </button>
-      </section>
-
-      <section className="card">
-        <p className="muted">Letzte 7 Tage</p>
-        <div className="week">
-          {last7.map((d) => (
-            <div key={d.key} className="day">
-              <span className={`dot ${days.includes(d.key) ? 'full' : ''}`} />
-              <small>{d.label}</small>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="card info">
-        <p className="muted">PWA-Status</p>
-        <ul>
-          <li>
-            <span>Als App installiert</span>
-            <b className={standalone ? 'ok' : ''}>{standalone ? 'Ja' : 'Nein'}</b>
-          </li>
-          <li>
-            <span>Check-ins gespeichert</span>
-            <b>{days.length}</b>
-          </li>
-        </ul>
-        {!standalone && (
-          <p className="hint">
-            Safari → Teilen-Symbol → „Zum Home-Bildschirm“, um die App zu
-            installieren.
-          </p>
-        )}
-      </section>
-    </main>
+    <Home sessions={sessions} onOpenMeditation={() => setPhase({ name: 'meditation' })} />
   )
 }
