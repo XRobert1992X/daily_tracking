@@ -135,7 +135,19 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
 
   const allowed = (e: ReactPointerEvent) => e.pointerType !== 'touch' || settings.finger
 
+  // Finger wischt die Seite, solange er nicht zeichnen soll
+  const scrollY = useRef<number | null>(null)
+
   const down = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === 'touch' && (readOnly || !allowed(e))) {
+      scrollY.current = e.clientY
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        // egal
+      }
+      return
+    }
     if (readOnly || !allowed(e)) return
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
@@ -152,6 +164,11 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
   }
 
   const move = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (scrollY.current !== null) {
+      window.scrollBy(0, scrollY.current - e.clientY)
+      scrollY.current = e.clientY
+      return
+    }
     if (!drawing.current) return
     const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent]
     for (const ev of events.length ? events : [e.nativeEvent]) {
@@ -163,6 +180,7 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
   }
 
   const up = () => {
+    scrollY.current = null
     if (!drawing.current) return
     drawing.current = false
     if (live.current && live.current.pts.length >= 3) {
