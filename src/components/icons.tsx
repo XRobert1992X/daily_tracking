@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react'
 import type { SocialKind, Topic } from '../types'
 
-const HEART = 'M12 21s-7-4.5-9-9.2C1.5 8 4 5 7 5c2 0 3.5 1 5 3 1.5-2 3-3 5-3 3 0 5.5 3 4 6.8-2 4.7-9 9.2-9 9.2z'
-
 const GLYPHS: Record<Topic, ReactNode> = {
   meditation: (
     <>
@@ -43,11 +41,9 @@ const GLYPHS: Record<Topic, ReactNode> = {
   social: (
     <>
       <path d="M12 12h24a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H26l-7 6.500V31h-7a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" />
-      <path
-        d="M24 26.500c-4.500-3-5.500-5.500-4.200-7.300 1.100-1.400 3-1.100 4.200.5 1.200-1.600 3.100-1.900 4.200-.5 1.300 1.800.3 4.300-4.200 7.300z"
-        fill="#e4e4e7"
-        stroke="none"
-      />
+      <circle cx="17" cy="21.500" r="1.500" fill="#e4e4e7" stroke="none" />
+      <circle cx="24" cy="21.500" r="1.500" fill="#e4e4e7" stroke="none" />
+      <circle cx="31" cy="21.500" r="1.500" fill="#e4e4e7" stroke="none" />
     </>
   ),
 }
@@ -93,7 +89,12 @@ const KIND_GLYPHS: Record<SocialKind, ReactNode> = {
       <path d="M11 18h2" />
     </>
   ),
-  date: <path d={HEART} />,
+  date: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2.500" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </>
+  ),
 }
 
 export function KindIcon({ kind, size = 24 }: { kind: SocialKind; size?: number }) {
