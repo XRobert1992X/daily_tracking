@@ -100,6 +100,25 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
   }, [h])
 
   useEffect(() => draw(), [local, draw])
+  // Pencil kann als „touch“ gemeldet werden; die Touch-Events verraten ihn über touchType
+  const stylus = useRef(false)
+  useEffect(() => {
+    const el = canvas.current
+    if (!el) return
+    const start = (e: TouchEvent) => {
+      stylus.current = Array.from(e.changedTouches).some((t) => (t as Touch & { touchType?: string }).touchType === 'stylus')
+    }
+    const stop = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault()
+    }
+    el.addEventListener('touchstart', start, { passive: true })
+    // iOS ignoriert touch-action bei Stift-Eingaben teilweise: Wischen auf der Fläche darf die Seite nie bewegen
+    el.addEventListener('touchmove', stop, { passive: false })
+    return () => {
+      el.removeEventListener('touchstart', start)
+      el.removeEventListener('touchmove', stop)
+    }
+  }, [])
   useEffect(() => {
     const el = canvas.current
     if (!el) return
@@ -133,13 +152,13 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
     }
   }
 
-  const allowed = (e: ReactPointerEvent) => e.pointerType !== 'touch' || settings.finger
+  const allowed = (e: ReactPointerEvent) => e.pointerType !== 'touch' || stylus.current || settings.finger
 
   // Finger wischt die Seite, solange er nicht zeichnen soll
   const scrollY = useRef<number | null>(null)
 
   const down = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (e.pointerType === 'touch' && (readOnly || !allowed(e))) {
+    if (e.pointerType === 'touch' && !stylus.current && (readOnly || !allowed(e))) {
       scrollY.current = e.clientY
       try {
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -165,8 +184,13 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
 
   const move = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (scrollY.current !== null) {
-      window.scrollBy(0, scrollY.current - e.clientY)
-      scrollY.current = e.clientY
+      if (!stylus.current) {
+        window.scrollBy(0, scrollY.current - e.clientY)
+        scrollY.current = e.clientY
+        return
+      }
+      // Es war doch der Pencil: Scrollen abbrechen, nicht verschieben
+      scrollY.current = null
       return
     }
     if (!drawing.current) return
@@ -181,6 +205,7 @@ export default function InkCanvas({ strokes, h, settings, readOnly, onChange }: 
 
   const up = () => {
     scrollY.current = null
+    stylus.current = false
     if (!drawing.current) return
     drawing.current = false
     if (live.current && live.current.pts.length >= 3) {
