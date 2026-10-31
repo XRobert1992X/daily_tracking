@@ -54,7 +54,7 @@ export const METRICS: Record<Topic, MetricDef[]> = {
   social: [
     { id: 'indirect', label: 'Indirekte Interaktionen', unit: '×', agg: 'sum' },
     { id: 'approach', label: 'Angesprochen', unit: '×', agg: 'sum' },
-    { id: 'contact', label: 'Kontakte ausgetauscht', unit: '×', agg: 'sum' },
+    { id: 'contact', label: 'Kontakt ausgetauscht', unit: '×', agg: 'sum' },
     { id: 'date', label: 'Dates', unit: '×', agg: 'sum' },
   ],
 }
