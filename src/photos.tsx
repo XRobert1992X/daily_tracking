@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { del, get, keys, set } from 'idb-keyval'
+import { SyncStore, registerStore } from './sync/store'
 
 export interface PhotoMeta {
   id: string
@@ -15,8 +16,9 @@ export interface ExportPhoto extends PhotoMeta {
 }
 
 const INDEX_KEY = 'photo-index'
-const blobKey = (id: string) => `photo:${id}`
+export const blobKey = (id: string) => `photo:${id}`
 const MAX_SIDE = 1600
+const ORPHAN_AGE_MS = 3_600_000
 
 interface PhotoApi {
   metas: PhotoMeta[]
@@ -89,27 +91,24 @@ async function compress(file: File): Promise<Stored> {
 }
 
 export function PhotoProvider({ children }: { children: ReactNode }) {
+  const [store] = useState(() => new SyncStore<PhotoMeta>(INDEX_KEY))
   const [metas, setMetas] = useState<PhotoMeta[]>([])
   const [loaded, setLoaded] = useState(false)
-  const ref = useRef<PhotoMeta[]>([])
   const urls = useRef(new Map<string, string>())
   const pinned = useRef(new Set<string>())
 
   useEffect(() => {
-    get<PhotoMeta[]>(INDEX_KEY)
-      .then((v) => {
-        ref.current = v ?? []
-        setMetas(ref.current)
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  }, [])
-
-  const commit = useCallback((next: PhotoMeta[]) => {
-    ref.current = next
-    setMetas(next)
-    void set(INDEX_KEY, next)
-  }, [])
+    const unsub = store.subscribe(() => {
+      setMetas(store.items)
+      setLoaded(store.loaded)
+    })
+    const unreg = registerStore('photos', store)
+    void store.load()
+    return () => {
+      unsub()
+      unreg()
+    }
+  }, [store])
 
   const dropBlob = useCallback((id: string) => {
     // Bilder, die eine Sicherung noch braucht, bleiben im Speicher
@@ -132,18 +131,22 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
           await set(blobKey(id), await compress(f))
           added.push({ id, ownerId, createdAt: new Date().toISOString() })
         }
-        commit([...ref.current, ...added])
+        store.merge(added)
         return added.map((m) => m.id)
       },
       remove(id) {
         dropBlob(id)
-        commit(ref.current.filter((m) => m.id !== id))
+        store.remove(id)
       },
+      // Nur Fotos, die älter als eine Stunde sind: neu aufgenommene gehören evtl. zu einem noch nicht gespeicherten Eintrag
       cleanup(valid) {
-        const orphans = ref.current.filter((m) => !valid.has(m.ownerId))
+        const orphans = store.items.filter(
+          (m) => !valid.has(m.ownerId) && Date.now() - Date.parse(m.createdAt) > ORPHAN_AGE_MS,
+        )
         if (!orphans.length) return
         orphans.forEach((m) => dropBlob(m.id))
-        commit(ref.current.filter((m) => valid.has(m.ownerId)))
+        const gone = new Set(orphans.map((m) => m.id))
+        store.removeWhere((m) => gone.has(m.id))
       },
       async url(id) {
         const cached = urls.current.get(id)
@@ -159,7 +162,7 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
       },
       // Löscht Bilder, die weder im Index noch von einer Sicherung gebraucht werden
       async gc() {
-        const live = new Set(ref.current.map((m) => m.id))
+        const live = new Set(store.items.map((m) => m.id))
         for (const k of await keys()) {
           const key = String(k)
           if (!key.startsWith('photo:')) continue
@@ -168,11 +171,11 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
         }
       },
       restoreIndex(list) {
-        commit(list)
+        store.replaceAll(list)
       },
       async dumpAll() {
         const out: ExportPhoto[] = []
-        for (const m of ref.current) {
+        for (const m of store.items) {
           const stored = await get<Stored>(blobKey(m.id))
           if (!stored) continue
           out.push({ ...m, type: stored.type, data: await blobToBase64(new Blob([stored.buf])) })
@@ -180,18 +183,18 @@ export function PhotoProvider({ children }: { children: ReactNode }) {
         return out
       },
       async importAll(list) {
-        const known = new Set(ref.current.map((m) => m.id))
+        const known = new Set(store.items.map((m) => m.id))
         const added: PhotoMeta[] = []
         for (const p of list) {
           if (known.has(p.id)) continue
           await set(blobKey(p.id), { type: p.type, buf: await base64ToBuffer(p.data, p.type) })
           added.push({ id: p.id, ownerId: p.ownerId, createdAt: p.createdAt })
         }
-        if (added.length) commit([...ref.current, ...added])
+        store.merge(added)
         return added.length
       },
     }),
-    [metas, loaded, commit, dropBlob],
+    [metas, loaded, store, dropBlob],
   )
 
   return <PhotoContext.Provider value={api}>{children}</PhotoContext.Provider>

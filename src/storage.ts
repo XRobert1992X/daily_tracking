@@ -1,7 +1,10 @@
-import { get, set } from 'idb-keyval'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ExportPhoto } from './photos'
+import { SyncStore, registerStore } from './sync/store'
+import type { Row } from './sync/store'
 import type { ActiveSession, Settings } from './types'
+
+export type { Row }
 
 export const KEYS = {
   meditation: 'meditation-sessions',
@@ -24,8 +27,6 @@ export const KEYS = {
 } as const
 
 export type StoreName = keyof typeof KEYS
-export type Row = { id: string }
-
 export interface Collection<T extends Row> {
   items: T[]
   loaded: boolean
@@ -37,65 +38,41 @@ export interface Collection<T extends Row> {
   replaceAll(list: T[]): void
 }
 
+// Eine Sammlung, die lokal gespeichert und (falls eingerichtet) mit der Cloud abgeglichen wird
+export function useSyncStore<T extends Row>(
+  syncName: string,
+  idbKey: string,
+  sort?: (a: T, b: T) => number,
+): Collection<T> {
+  const [store] = useState(() => new SyncStore<T>(idbKey, sort))
+  const [view, setView] = useState({ items: store.items, loaded: store.loaded })
+
+  useEffect(() => {
+    const unsub = store.subscribe(() => setView({ items: store.items, loaded: store.loaded }))
+    const unreg = registerStore(syncName, store)
+    void store.load()
+    return () => {
+      unsub()
+      unreg()
+    }
+  }, [store, syncName])
+
+  return {
+    items: view.items,
+    loaded: view.loaded,
+    upsert: store.upsert,
+    remove: store.remove,
+    removeWhere: store.removeWhere,
+    merge: store.merge,
+    replaceAll: store.replaceAll,
+  }
+}
+
 export function useCollection<T extends Row>(
   name: StoreName,
   sort?: (a: T, b: T) => number,
 ): Collection<T> {
-  const [items, setItems] = useState<T[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const ref = useRef<T[]>([])
-  const sortRef = useRef(sort)
-
-  const commit = useCallback((next: T[]) => {
-    const out = sortRef.current ? [...next].sort(sortRef.current) : next
-    ref.current = out
-    setItems(out)
-    void set(KEYS[name], out)
-  }, [name])
-
-  useEffect(() => {
-    get<T[]>(KEYS[name])
-      .then((v) => {
-        const list = v ?? []
-        ref.current = sortRef.current ? [...list].sort(sortRef.current) : list
-        setItems(ref.current)
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  }, [name])
-
-  const upsert = useCallback(
-    (item: T) => {
-      const cur = ref.current
-      commit(
-        cur.some((x) => x.id === item.id)
-          ? cur.map((x) => (x.id === item.id ? item : x))
-          : [...cur, item],
-      )
-    },
-    [commit],
-  )
-  const remove = useCallback(
-    (id: string) => commit(ref.current.filter((x) => x.id !== id)),
-    [commit],
-  )
-  const removeWhere = useCallback(
-    (fn: (item: T) => boolean) => commit(ref.current.filter((x) => !fn(x))),
-    [commit],
-  )
-  const merge = useCallback(
-    (list: T[]) => {
-      const known = new Set(ref.current.map((x) => x.id))
-      const fresh = list.filter((x) => !known.has(x.id))
-      if (fresh.length) commit([...ref.current, ...fresh])
-      return fresh.length
-    },
-    [commit],
-  )
-
-  const replaceAll = useCallback((list: T[]) => commit(list), [commit])
-
-  return { items, loaded, upsert, remove, removeWhere, merge, replaceAll }
+  return useSyncStore<T>(name, KEYS[name], sort)
 }
 
 // Bittet Safari, die Daten nicht automatisch zu löschen

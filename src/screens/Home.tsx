@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import BackupPanel from '../components/BackupPanel'
+import SyncPanel from '../components/SyncPanel'
+import { useSync } from '../sync'
 import { TopicIcon } from '../components/icons'
 import PeriodBoard from '../components/PeriodBoard'
 import { Seg } from '../components/ui'
@@ -60,6 +62,18 @@ export default function Home({
   onDeleteSnapshot,
 }: Props) {
   const online = useOnline()
+  const sync = useSync()
+  const status = !online
+    ? 'Offline'
+    : !sync.email
+      ? 'Online'
+      : sync.sync.phase === 'syncing'
+        ? 'Sync…'
+        : sync.sync.phase === 'error'
+          ? 'Sync-Fehler'
+          : sync.sync.pending > 0
+            ? 'Sync offen'
+            : 'Synchron'
   const [period, setPeriod] = useState<TodoPeriod>('day')
   const dues = duePenalties(goals, data, data.penalties)
   const dueTotal = dues.reduce((a, p) => a + (p.goal.penalty?.amount ?? 0), 0)
@@ -214,8 +228,8 @@ export default function Home({
           </p>
           <h1>Progress</h1>
         </div>
-        <span className={`pill ${online ? 'on' : 'off'}`}>
-          <i /> {online ? 'Online' : 'Offline'}
+        <span className={`pill ${online && sync.sync.phase !== 'error' ? 'on' : 'off'}`}>
+          <i /> {status}
         </span>
       </header>
 
@@ -259,6 +273,9 @@ export default function Home({
           <span className="chev">›</span>
         </button>
       ))}
+
+      <p className="muted section">Synchronisation</p>
+      <SyncPanel />
 
       <p className="muted section">Backup</p>
       <BackupPanel

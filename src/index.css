@@ -573,6 +573,8 @@ select option {
 }
 
 input[type='text'],
+input[type='email'],
+input[type='password'],
 input[type='date'] {
   width: 100%;
   padding: 14px;
@@ -2720,6 +2722,40 @@ input[type='time'] {
 .chipbtn.on {
   background: rgba(var(--accent-rgb), 0.22);
   border-color: transparent;
+}
+
+/* Synchronisation */
+.steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.steps li {
+  margin-bottom: 8px;
+}
+
+.steps code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow-wrap: anywhere;
+}
+
+.sync-line {
+  margin: 6px 0 0;
+  font-weight: 700;
+}
+
+.sync-line.ok {
+  color: var(--ok);
+}
+
+.sync-line.bad {
+  color: var(--bad);
 }
 
 /* Stimmung: Uhrzeit und Tageszeit-Fenster */

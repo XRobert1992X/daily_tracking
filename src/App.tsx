@@ -29,14 +29,17 @@ import Social from './screens/Social'
 import Todo from './screens/Todo'
 import Trading from './screens/Trading'
 import {
+  KEYS,
   exportBackup,
   lastExportAt,
   loadActive,
   parseBackup,
   requestPersistentStorage,
   useCollection,
+  useSyncStore,
 } from './storage'
 import type { Row, StoreName } from './storage'
+import { canCleanup, initSync, useSync } from './sync'
 import type {
   Book,
   ColdShower,
@@ -63,6 +66,10 @@ import type {
 
 const TDEE_KEY = 'progress:diet-tdee'
 const SLEEP_CFG_KEY = 'progress:sleep-cfg'
+
+interface SettingsRow extends Settings {
+  id: string
+}
 
 const byStart = (a: { startedAt: string }, b: { startedAt: string }) =>
   a.startedAt.localeCompare(b.startedAt)
@@ -96,14 +103,12 @@ export default function App() {
   const penalties = usePenalties()
   const goals = useCollection<Goal>('goals')
   const photoApi = usePhotoApi()
+  const syncState = useSync()
+  const settingsRows = useSyncStore<SettingsRow>('settings', 'settings-row')
   const [dietTdee, setDietTdee] = useState(() => {
     const n = parseInt(localStorage.getItem(TDEE_KEY) ?? '', 10)
     return n >= 800 ? n : 2400
   })
-  const changeTdee = (n: number) => {
-    localStorage.setItem(TDEE_KEY, String(n))
-    setDietTdee(n)
-  }
   const [sleepCfg, setSleepCfg] = useState<SleepCfg>(() => {
     try {
       const c = JSON.parse(localStorage.getItem(SLEEP_CFG_KEY) ?? '')
@@ -113,11 +118,55 @@ export default function App() {
     }
     return DEFAULT_SLEEP_CFG
   })
+  // Aktuelle Werte für Änderungen, die direkt nacheinander passieren (z. B. beim Wiederherstellen)
+  const cur = useRef<Settings>({ dietTdee, sleepCfg })
+  const saveSettingsRow = () => settingsRows.upsert({ id: 'main', ...cur.current })
+  const changeTdee = (n: number) => {
+    localStorage.setItem(TDEE_KEY, String(n))
+    cur.current = { ...cur.current, dietTdee: n }
+    setDietTdee(n)
+    saveSettingsRow()
+  }
   const changeSleepCfg = (c: SleepCfg) => {
     localStorage.setItem(SLEEP_CFG_KEY, JSON.stringify(c))
+    cur.current = { ...cur.current, sleepCfg: c }
     setSleepCfg(c)
+    saveSettingsRow()
   }
   const settings: Settings = { dietTdee, sleepCfg }
+
+  // Einstellungen von anderen Geräten übernehmen; eigene abweichende Werte einmal bereitstellen
+  useEffect(() => {
+    if (!settingsRows.loaded) return
+    const row = settingsRows.items.find((r) => r.id === 'main')
+    if (!row) {
+      const custom =
+        cur.current.dietTdee !== 2400 ||
+        JSON.stringify(cur.current.sleepCfg) !== JSON.stringify(DEFAULT_SLEEP_CFG)
+      if (custom) settingsRows.upsert({ id: 'main', ...cur.current })
+      return
+    }
+    if (row.dietTdee >= 800 && row.dietTdee !== cur.current.dietTdee) {
+      localStorage.setItem(TDEE_KEY, String(row.dietTdee))
+      cur.current = { ...cur.current, dietTdee: row.dietTdee }
+      setDietTdee(row.dietTdee)
+    }
+    const c = row.sleepCfg
+    if (
+      typeof c?.wake === 'string' &&
+      typeof c?.bed === 'string' &&
+      JSON.stringify(c) !== JSON.stringify(cur.current.sleepCfg)
+    ) {
+      localStorage.setItem(SLEEP_CFG_KEY, JSON.stringify(c))
+      cur.current = { ...cur.current, sleepCfg: c }
+      setSleepCfg(c)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsRows.items, settingsRows.loaded])
+
+  useEffect(() => {
+    void initSync([...Object.keys(KEYS), 'settings', 'photos'])
+  }, [])
 
   const stores: Record<
     StoreName,
@@ -183,6 +232,7 @@ export default function App() {
     penalties.loaded &&
     goals.loaded &&
     photoApi.loaded &&
+    settingsRows.loaded &&
     snapsLoaded
 
   // Fotos, die eine Sicherung braucht, werden nicht gelöscht
@@ -190,7 +240,7 @@ export default function App() {
     photoApi.setPinned(pinnedPhotoIds(snaps))
     if (allLoaded) void photoApi.gc()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snaps, allLoaded])
+  }, [snaps, allLoaded, photoApi.metas])
 
   // Automatische Sicherung: einmal pro Tag beim Start, sobald es Daten gibt
   useEffect(() => {
@@ -233,10 +283,13 @@ export default function App() {
   ownersRef.current = owners
   useEffect(() => {
     if (!allLoaded || route !== 'home') return
-    const t = setTimeout(() => photoApi.cleanup(new Set(ownersRef.current)), 1500)
+    const t = setTimeout(() => {
+      // Mit eingerichteter Synchronisation erst aufräumen, wenn alle Einträge aus der Cloud da sind
+      if (canCleanup()) photoApi.cleanup(new Set(ownersRef.current))
+    }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLoaded, route])
+  }, [allLoaded, route, syncState.sync.lastSync])
 
   // Der erste Tipp schaltet den Ton frei (iOS verlangt eine Nutzergeste)
   useEffect(() => {
