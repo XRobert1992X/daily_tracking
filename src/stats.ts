@@ -105,13 +105,30 @@ export function habitStreak(h: Habit, byDay: Map<string, number>) {
 
 // Energie immer auf der 10er-Skala; ältere Einträge (1–5) werden verdoppelt
 export const energy10 = (e: MoodEntry) => (e.energyScale === 10 ? e.energy : e.energy * 2)
+export const mood10 = (e: MoodEntry) => (e.moodScale === 10 ? e.mood : e.mood * 2)
+
+// Tageszeit-Fenster à 3 Stunden (0–3, 3–6, … 21–24 Uhr)
+export const BUCKET_HOURS = 3
+export const BUCKETS = Array.from({ length: 24 / BUCKET_HOURS }, (_, i) => {
+  const from = i * BUCKET_HOURS
+  return { index: i, from, to: from + BUCKET_HOURS, label: `${from}–${from + BUCKET_HOURS}` }
+})
+export const bucketOf = (iso: string) => Math.floor(new Date(iso).getHours() / BUCKET_HOURS)
+
+export function bucketStats(entries: MoodEntry[]) {
+  return BUCKETS.map((b) => {
+    const list = entries.filter((e) => bucketOf(e.at) === b.index)
+    const avg = (f: (e: MoodEntry) => number) => (list.length ? sum(list.map(f)) / list.length : null)
+    return { ...b, n: list.length, mood: avg(mood10), energy: avg(energy10) }
+  })
+}
 
 export function dailyMood(entries: MoodEntry[]) {
   const sums = new Map<string, { mood: number; energy: number; n: number }>()
   for (const e of entries) {
     const k = dayKey(new Date(e.at))
     const s = sums.get(k) ?? { mood: 0, energy: 0, n: 0 }
-    s.mood += e.mood
+    s.mood += mood10(e)
     s.energy += energy10(e)
     s.n++
     sums.set(k, s)

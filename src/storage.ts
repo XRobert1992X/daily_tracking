@@ -17,6 +17,7 @@ export const KEYS = {
   diet: 'diet',
   trades: 'trades',
   gratitude: 'gratitude',
+  cold: 'cold-showers',
   sleep: 'sleep',
   penalties: 'penalties',
   notes: 'notes',

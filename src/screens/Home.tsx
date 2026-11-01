@@ -5,7 +5,7 @@ import PeriodBoard from '../components/PeriodBoard'
 import { Seg } from '../components/ui'
 import { PERIOD_NAMES, duePenalties, periodStartKey } from '../goals'
 import type { AppData } from '../goals'
-import { dayStreak, dayKey, energy10, sum, todayKey, weekKeys } from '../stats'
+import { dayStreak, dayKey, energy10, mood10, sum, todayKey, weekKeys } from '../stats'
 import { durationMin, fmtDiff, fmtDur, fmtTime, wakeDiff } from '../sleep'
 import type { SnapshotMeta } from '../backups'
 import { PenaltyList } from '../components/PenaltyList'
@@ -108,6 +108,11 @@ export default function Home({
   const gratitudeInfo = data.gratitude.length
     ? `Heute ${gratitudeToday}× · Serie ${gratitudeStreak} Tage`
     : 'Noch kein Eintrag'
+  const coldToday = data.cold.filter((c) => dayOf(c.startedAt) === today).length
+  const coldStreak = dayStreak(new Set(data.cold.map((c) => dayOf(c.startedAt))))
+  const coldInfo = data.cold.length
+    ? `Heute ${coldToday}× · Serie ${coldStreak} Tage`
+    : 'Timer, Standard 1:30 Min'
   const sleepToday = data.sleep.find((e) => e.day === today)
   const lastSleep = [...data.sleep].reverse().find((e) => durationMin(e) !== null)
   const sleepInfo = sleepToday?.wake
@@ -147,6 +152,11 @@ export default function Home({
       info: sleepInfo,
     },
     {
+      id: 'cold',
+      name: 'Kalte Dusche',
+      info: coldInfo,
+    },
+    {
       id: 'gratitude',
       name: 'Dankbarkeit',
       info: gratitudeInfo,
@@ -172,7 +182,7 @@ export default function Home({
       id: 'mood',
       name: 'Stimmung & Energie',
       info: lastMood
-        ? `Zuletzt: Stimmung ${lastMood.mood}/5 · Energie ${energy10(lastMood)}/10`
+        ? `Zuletzt: Stimmung ${mood10(lastMood)}/10 · Energie ${energy10(lastMood)}/10`
         : 'Noch kein Check-in',
     },
     {

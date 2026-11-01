@@ -23,7 +23,10 @@ export function Seg<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="seg" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div
+      className={`seg ${options.length >= 5 ? 'many' : ''}`}
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
       {options.map((o) => (
         <button key={o.id} className={o.id === value ? 'on' : ''} onClick={() => onChange(o.id)}>
           {o.label}

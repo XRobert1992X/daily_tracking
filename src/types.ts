@@ -80,11 +80,14 @@ export interface HabitLog {
 export interface MoodEntry {
   id: string
   at: string
-  // Stimmung 1–5
+  // Stimmung und Energie: neue Einträge 1–10 (moodScale/energyScale 10), ältere Einträge 1–5
   mood: number
-  // Energie: neue Einträge 1–10 (energyScale 10), ältere Einträge 1–5
+  moodScale?: 10
   energy: number
   energyScale?: 10
+  moodNote?: string
+  energyNote?: string
+  // Allgemeine Notiz (ältere Einträge)
   note?: string
 }
 
@@ -109,6 +112,21 @@ export type Topic =
   | 'trading'
   | 'gratitude'
   | 'sleep'
+  | 'cold'
+
+export interface ColdShower {
+  id: string
+  startedAt: string
+  plannedSec: number
+  actualSec: number
+  completed: boolean
+  // Überwindung 1–10: wie schwer war es?
+  effort?: number
+  note?: string
+}
+
+export const COLD_DEFAULT_SEC = 90
+export const COLD_PRESETS = [30, 60, 90, 120, 180, 300]
 
 export interface GratitudeEntry {
   id: string

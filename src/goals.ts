@@ -1,7 +1,8 @@
 import { bedDiff, durationMin, wakeDiff } from './sleep'
-import { addDays, dayKey, energy10, weekStart } from './stats'
+import { addDays, dayKey, energy10, mood10, weekStart } from './stats'
 import type {
   Book,
+  ColdShower,
   DietEntry,
   FocusSession,
   Goal,
@@ -36,6 +37,7 @@ export interface AppData {
   diet: DietEntry[]
   trades: TradeEntry[]
   gratitude: GratitudeEntry[]
+  cold: ColdShower[]
   sleep: SleepEntry[]
   penalties: PenaltyLog[]
   notes: NoteEntry[]
@@ -88,6 +90,10 @@ export const METRICS: Record<Topic, MetricDef[]> = {
   gratitude: [
     { id: 'entries', label: 'Dankbarkeits-Einträge', unit: '×', agg: 'sum' },
     { id: 'items', label: 'Dankbarkeiten', unit: '×', agg: 'sum' },
+  ],
+  cold: [
+    { id: 'sessions', label: 'Kalte Duschen', unit: '×', agg: 'sum' },
+    { id: 'minutes', label: 'Minuten kalt', unit: 'Min', agg: 'sum' },
   ],
   sleep: [
     { id: 'wakeOk', label: 'Pünktlich aufgestanden', unit: 'Tage', agg: 'sum' },
@@ -167,7 +173,7 @@ function buildDaily(goal: Goal, d: AppData): Daily {
       for (const e of d.moods) {
         const k = day(e.at)
         if (goal.metric === 'checkins') add(out, k, 1)
-        else add(out, k, goal.metric === 'avgMood' ? e.mood : energy10(e))
+        else add(out, k, goal.metric === 'avgMood' ? mood10(e) : energy10(e))
       }
       break
     }
@@ -197,6 +203,9 @@ function buildDaily(goal: Goal, d: AppData): Daily {
     }
     case 'trading':
       for (const t of d.trades) add(out, day(t.at), goal.metric === 'pnl' ? t.amount : 1)
+      break
+    case 'cold':
+      for (const c of d.cold) add(out, day(c.startedAt), goal.metric === 'minutes' ? c.actualSec / 60 : 1)
       break
     case 'gratitude':
       for (const g of d.gratitude) add(out, day(g.at), goal.metric === 'items' ? g.items.length : 1)

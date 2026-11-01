@@ -4,7 +4,7 @@ import { LineChart } from '../components/charts'
 import GoalsPanel from '../components/GoalsPanel'
 import { Header, Meter, Seg, Stat } from '../components/ui'
 import type { AppData } from '../goals'
-import { dailyMood, dayKey, energy10, lastDays, shortDate, sum } from '../stats'
+import { bucketOf, bucketStats, BUCKETS, dailyMood, dayKey, energy10, lastDays, mood10, shortDate, sum } from '../stats'
 import type { Goal, MoodEntry } from '../types'
 
 interface Props {
@@ -17,7 +17,18 @@ interface Props {
   onBack: () => void
 }
 
-const MOOD_WORDS = ['schlecht', 'mäßig', 'okay', 'gut', 'sehr gut']
+const MOOD_WORDS = [
+  'sehr schlecht',
+  'schlecht',
+  'niedergeschlagen',
+  'mäßig',
+  'okay',
+  'ganz gut',
+  'gut',
+  'sehr gut',
+  'großartig',
+  'ausgezeichnet',
+]
 const ENERGY_WORDS = [
   'leer',
   'sehr müde',
@@ -87,6 +98,21 @@ function Scale({
   )
 }
 
+function bucketLabel(iso: string) {
+  const b = BUCKETS[bucketOf(iso)]
+  return `${b.label} Uhr`
+}
+
+function entryTitle(e: MoodEntry) {
+  return `Stimmung ${mood10(e)}/10 · Energie ${energy10(e)}/10`
+}
+
+function entryNotes(e: MoodEntry) {
+  return [e.moodNote && `Stimmung: ${e.moodNote}`, e.energyNote && `Energie: ${e.energyNote}`, e.note]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 function CheckIn({
   data,
   onSave,
@@ -98,31 +124,64 @@ function CheckIn({
 }) {
   const [mood, setMood] = useState(0)
   const [energy, setEnergy] = useState(0)
-  const [note, setNote] = useState('')
+  const [moodNote, setMoodNote] = useState('')
+  const [energyNote, setEnergyNote] = useState('')
+  // Leer = jetzt; sonst Uhrzeit von heute (für nachgetragene Einträge)
+  const [time, setTime] = useState('')
   const [draft, setDraft] = useState(() => crypto.randomUUID())
   const today = dayKey(new Date())
   const todays = data.moods.filter((e) => dayKey(new Date(e.at)) === today)
+
+  const atIso = () => {
+    if (!time) return new Date().toISOString()
+    const [h, m] = time.split(':').map(Number)
+    const d = new Date()
+    d.setHours(h, m, 0, 0)
+    return (d > new Date() ? new Date() : d).toISOString()
+  }
+  const previewBucket = bucketLabel(atIso())
 
   return (
     <>
       <section className="card">
         <p className="muted">Wie fühlst du dich gerade?</p>
-        <Scale value={mood} onChange={setMood} max={5} words={MOOD_WORDS} />
+        <Scale value={mood} onChange={setMood} max={10} words={MOOD_WORDS} />
+        <label className="field">
+          <span className="muted">Notiz zur Stimmung (optional)</span>
+          <textarea
+            rows={2}
+            value={moodNote}
+            onChange={(e) => setMoodNote(e.target.value)}
+            placeholder="Woran liegt das?"
+          />
+        </label>
       </section>
       <section className="card">
         <p className="muted">Wie viel Energie hast du?</p>
         <Scale value={energy} onChange={setEnergy} max={10} words={ENERGY_WORDS} />
-      </section>
-      <section className="card">
         <label className="field">
-          <span className="muted">Notiz (optional)</span>
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Was beschäftigt dich?"
+          <span className="muted">Notiz zur Energie (optional)</span>
+          <textarea
+            rows={2}
+            value={energyNote}
+            onChange={(e) => setEnergyNote(e.target.value)}
+            placeholder="Schlaf, Essen, Training …"
           />
         </label>
+      </section>
+      <section className="card">
+        <div className="timerow">
+          <label className="field">
+            <span className="muted">Uhrzeit (leer = jetzt)</span>
+            <input
+              type="time"
+              value={time}
+              max={new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+              onChange={(e) => setTime(e.target.value)}
+            />
+          </label>
+          <span className="pill">{previewBucket}</span>
+        </div>
         <Attach ownerId={draft} />
       </section>
 
@@ -132,15 +191,19 @@ function CheckIn({
         onClick={() => {
           onSave({
             id: draft,
-            at: new Date().toISOString(),
+            at: atIso(),
             mood,
+            moodScale: 10,
             energy,
             energyScale: 10,
-            note: note.trim() || undefined,
+            moodNote: moodNote.trim() || undefined,
+            energyNote: energyNote.trim() || undefined,
           })
           setMood(0)
           setEnergy(0)
-          setNote('')
+          setMoodNote('')
+          setEnergyNote('')
+          setTime('')
           setDraft(crypto.randomUUID())
         }}
       >
@@ -151,27 +214,28 @@ function CheckIn({
         <section className="card">
           <p className="muted">Heute</p>
           <ul className="list">
-            {[...todays].reverse().map((e) => (
-              <li key={e.id}>
-                <div>
-                  <b>
-                    Stimmung {e.mood}/5 · Energie {energy10(e)}/10
-                  </b>
-                  <small className="muted">
-                    {new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                    {e.note && ` · ${e.note}`}
-                  </small>
-                </div>
-                <PhotoBadge ownerId={e.id} />
-                <button
-                  className="x"
-                  aria-label="Löschen"
-                  onClick={() => confirm('Eintrag löschen?') && onDelete(e.id)}
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
+            {[...todays]
+              .sort((a, b) => b.at.localeCompare(a.at))
+              .map((e) => (
+                <li key={e.id}>
+                  <div>
+                    <b>{entryTitle(e)}</b>
+                    <small className="muted">
+                      {new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} ·{' '}
+                      {bucketLabel(e.at)}
+                      {entryNotes(e) && ` · ${entryNotes(e)}`}
+                    </small>
+                  </div>
+                  <PhotoBadge ownerId={e.id} />
+                  <button
+                    className="x"
+                    aria-label="Löschen"
+                    onClick={() => confirm('Eintrag löschen?') && onDelete(e.id)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
           </ul>
         </section>
       )}
@@ -182,6 +246,14 @@ function CheckIn({
 function History({ data }: { data: AppData }) {
   const daily = dailyMood(data.moods)
   const days = lastDays(30)
+  const buckets = bucketStats(data.moods)
+  const filled = buckets.filter((b) => b.n > 0)
+  // Fenster mit nur einem Eintrag zählen erst, wenn es keine besseren Daten gibt
+  const pool = filled.some((b) => b.n >= 2) ? filled.filter((b) => b.n >= 2) : filled
+  const best = (key: 'mood' | 'energy') =>
+    pool.length ? pool.reduce((a, b) => ((b[key] ?? 0) > (a[key] ?? 0) ? b : a)) : null
+  const bestEnergy = best('energy')
+  const bestMood = best('mood')
   const avg = (key: 'mood' | 'energy', n: number) => {
     const vals = lastDays(n)
       .map((k) => daily.get(k)?.[key])
@@ -237,20 +309,58 @@ function History({ data }: { data: AppData }) {
             max={10}
             labels={days.map(shortDate)}
             series={[
-              // Stimmung (1–5) wird für die gemeinsame Skala verdoppelt
               {
                 name: 'Stimmung',
                 color: '#e4e4e7',
-                values: days.map((k) => {
-                  const m = daily.get(k)?.mood
-                  return m === undefined ? null : m * 2
-                }),
+                values: days.map((k) => daily.get(k)?.mood ?? null),
               },
               { name: 'Energie', color: '#38bdf8', values: days.map((k) => daily.get(k)?.energy ?? null) },
             ]}
           />
         )}
-        <p className="hint">Skala 1–10. Die Stimmung (1–5) ist dafür verdoppelt dargestellt.</p>
+        <p className="hint">Skala 1–10. Ältere Einträge (1–5) sind dafür verdoppelt.</p>
+      </section>
+
+      <section className="card">
+        <p className="muted">Tageszeiten (3-Stunden-Fenster)</p>
+        {buckets.every((b) => b.n === 0) ? (
+          <p className="hint">Noch keine Check-ins.</p>
+        ) : (
+          <>
+            <div className="bkts">
+              {buckets
+                .filter((b) => b.n > 0)
+                .map((b) => (
+                  <div key={b.index} className="bkt">
+                    <span className="bkt-label">{b.label}</span>
+                    <div className="bkt-bars">
+                      <div className="bkt-bar mood" style={{ width: `${((b.mood ?? 0) / 10) * 100}%` }} />
+                      <div className="bkt-bar energy" style={{ width: `${((b.energy ?? 0) / 10) * 100}%` }} />
+                    </div>
+                    <span className="bkt-val">
+                      {(b.mood ?? 0).toFixed(1)} · {(b.energy ?? 0).toFixed(1)}
+                      <small className="muted"> ({b.n}×)</small>
+                    </span>
+                  </div>
+                ))}
+            </div>
+            <div className="legend">
+              <span>
+                <i style={{ background: '#e4e4e7' }} /> Stimmung
+              </span>
+              <span>
+                <i style={{ background: '#38bdf8' }} /> Energie
+              </span>
+            </div>
+            {bestEnergy && bestMood && (
+              <p className="hint">
+                Beste Energie: {bestEnergy.label} Uhr ({(bestEnergy.energy ?? 0).toFixed(1)}) · Beste
+                Stimmung: {bestMood.label} Uhr ({(bestMood.mood ?? 0).toFixed(1)}). Fenster mit mehr als
+                einem Eintrag werden bevorzugt.
+              </p>
+            )}
+          </>
+        )}
       </section>
 
       <section className="card">
@@ -289,17 +399,16 @@ function History({ data }: { data: AppData }) {
             .map((e) => (
               <li key={e.id}>
                 <div>
-                  <b>
-                    Stimmung {e.mood}/5 · Energie {energy10(e)}/10
-                  </b>
+                  <b>{entryTitle(e)}</b>
                   <small className="muted">
                     {new Date(e.at).toLocaleDateString('de-DE', {
                       weekday: 'short',
                       day: '2-digit',
                       month: '2-digit',
                     })}{' '}
-                    {new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                    {e.note && ` · ${e.note}`}
+                    {new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} ·{' '}
+                    {bucketLabel(e.at)}
+                    {entryNotes(e) && ` · ${entryNotes(e)}`}
                   </small>
                 </div>
               </li>

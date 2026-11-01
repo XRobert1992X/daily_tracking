@@ -150,7 +150,7 @@ export default function TimerScreen({
         </svg>
         <div className="ring-text">
           <div className="clock">{fmtClock(left)}</div>
-          <small className="muted">von {plannedMin} Min</small>
+          <small className="muted">{Number.isInteger(plannedMin) ? `von ${plannedMin} Min` : `von ${fmtClock(total)} Min`}</small>
         </div>
       </div>
 

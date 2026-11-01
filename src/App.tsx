@@ -17,6 +17,7 @@ import Diet from './screens/Diet'
 import Focus, { hasPomoRunning } from './screens/Focus'
 import Gratitude from './screens/Gratitude'
 import Habits from './screens/Habits'
+import ColdShowerScreen from './screens/Cold'
 import Home from './screens/Home'
 import Meditation from './screens/Meditation'
 import Mood from './screens/Mood'
@@ -38,6 +39,7 @@ import {
 import type { Row, StoreName } from './storage'
 import type {
   Book,
+  ColdShower,
   DietEntry,
   FocusSession,
   Goal,
@@ -88,6 +90,7 @@ export default function App() {
   const diet = useCollection<DietEntry>('diet', byAt)
   const trades = useCollection<TradeEntry>('trades', byAt)
   const gratitude = useCollection<GratitudeEntry>('gratitude', byAt)
+  const cold = useCollection<ColdShower>('cold', byStart)
   const sleepEntries = useCollection<SleepEntry>('sleep')
   const notes = useCollection<NoteEntry>('notes')
   const penalties = usePenalties()
@@ -132,6 +135,7 @@ export default function App() {
     diet,
     trades,
     gratitude,
+    cold,
     sleep: sleepEntries,
     notes,
     penalties,
@@ -173,6 +177,7 @@ export default function App() {
     diet.loaded &&
     trades.loaded &&
     gratitude.loaded &&
+    cold.loaded &&
     sleepEntries.loaded &&
     notes.loaded &&
     penalties.loaded &&
@@ -220,6 +225,7 @@ export default function App() {
     diet.items,
     trades.items,
     gratitude.items,
+    cold.items,
     sleepEntries.items,
     notes.items,
   ].flatMap((l) => l.map((x) => x.id))
@@ -252,6 +258,7 @@ export default function App() {
     diet: diet.items,
     trades: trades.items,
     gratitude: gratitude.items,
+    cold: cold.items,
     sleep: sleepEntries.items,
     notes: notes.items,
     penalties: penalties.items,
@@ -324,6 +331,8 @@ export default function App() {
           onBack={() => setRoute('home')}
         />
       )
+    case 'cold':
+      return <ColdShowerScreen {...goalProps('cold')} onSave={cold.upsert} onDelete={cold.remove} />
     case 'gratitude':
       return <Gratitude {...goalProps('gratitude')} onSave={gratitude.upsert} onDelete={gratitude.remove} />
     case 'sleep':

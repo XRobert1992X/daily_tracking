@@ -217,6 +217,20 @@ button.topic:active {
   color: #fff;
 }
 
+/* Viele Reiter (z. B. ToDo mit Archiv) müssen in die Box passen */
+.seg {
+  min-width: 0;
+}
+
+.seg.many button {
+  padding: 10px 0;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
 /* Formular */
 .field {
   display: flex;
@@ -1332,7 +1346,7 @@ textarea {
   min-width: 0;
   font-size: 16px;
   line-height: 1.3;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .todo.done .todo-title {
@@ -1830,6 +1844,11 @@ textarea {
 .list li,
 .todo {
   flex-wrap: wrap;
+}
+
+/* Umgebrochene Symbole (Foto, Übernehmen, Löschen) rechtsbündig */
+.todo {
+  justify-content: flex-end;
 }
 
 .x.cam {
@@ -2564,8 +2583,8 @@ input[type='time'] {
 }
 
 .todo-main {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 130px;
+  min-width: 110px;
   display: flex;
   flex-direction: column;
 }
@@ -2701,4 +2720,65 @@ input[type='time'] {
 .chipbtn.on {
   background: rgba(var(--accent-rgb), 0.22);
   border-color: transparent;
+}
+
+/* Stimmung: Uhrzeit und Tageszeit-Fenster */
+.timerow {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.timerow .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.timerow .pill {
+  margin-bottom: 14px;
+  white-space: nowrap;
+}
+
+.bkts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.bkt {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.bkt-label {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bkt-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bkt-bar {
+  height: 6px;
+  border-radius: 999px;
+}
+
+.bkt-bar.mood {
+  background: #e4e4e7;
+}
+
+.bkt-bar.energy {
+  background: #38bdf8;
+}
+
+.bkt-val {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

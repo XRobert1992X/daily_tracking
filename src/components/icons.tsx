@@ -8,6 +8,13 @@ const GLYPHS: Record<Topic | 'todo' | 'notes', ReactNode> = {
       <path d="M17 17h12M17 24h12M17 31h7" />
     </>
   ),
+  cold: (
+    <>
+      <path d="M24 8c5 7 9 12 9 18a9 9 0 0 1-18 0c0-6 4-11 9-18z" />
+      <path d="M20 28a4 4 0 0 0 4 4" />
+      <path d="M12 38l2-2M24 41v-3M36 38l-2-2" />
+    </>
+  ),
   gratitude: (
     <>
       <circle cx="24" cy="24" r="7" />
